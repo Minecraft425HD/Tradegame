@@ -1,0 +1,18 @@
+{
+    "Beyer": {
+        "positive": "LOL",
+        "negative": "Beyer Aktie fällt um {change} Punkte!"
+    },
+    "BMW": {
+        "positive": "BMW Aktie steigt um {change} Punkte!",
+        "negative": "BMW Aktie fällt um {change} Punkte!"
+    },
+    "BP": {
+        "positive": "BP Aktie steigt um {change} Punkte!",
+        "negative": "BP Aktie fällt um {change} Punkte!"
+    },
+    "Commerzbank": {
+        "positive": "Commerzbank Aktie steigt um {change} Punkte!",
+        "negative": "Commerzbank Aktie fällt um {change} Punkte!"
+    }
+}
