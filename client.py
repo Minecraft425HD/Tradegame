@@ -17,7 +17,7 @@ def run_client(host, is_host=False, player_name=None):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.settimeout(5)
     last_wait_message = 0
-   
+  
     for attempt in range(max_connect_attempts):
         try:
             client.connect((host, PORT))
@@ -125,16 +125,59 @@ def run_client(host, is_host=False, player_name=None):
     pulse_size = 0
     pulse_direction = 1
     while running and client.fileno() != -1:
+        # Verarbeite Pygame-Events zuerst, um UI reaktionsfähig zu halten
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                if is_host:
+                    server_running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if minus_10_rect.collidepoint(event.pos):
+                    quantity -= 10
+                elif minus_1_rect.collidepoint(event.pos):
+                    quantity -= 1
+                elif plus_1_rect.collidepoint(event.pos):
+                    quantity += 1
+                elif plus_10_rect.collidepoint(event.pos):
+                    quantity += 10
+                elif news_button_rect.collidepoint(event.pos):
+                    show_news_screen(player_id, client)
+                elif shop_button_rect.collidepoint(event.pos):
+                    show_shop_screen(player_id, client, send_request)
+                for stock, label in stock_labels.items():
+                    if label.collidepoint(event.pos):
+                        selected_stock = stock
+                if card_button_rect.collidepoint(event.pos):
+                    send_request("draw_card")
+                elif end_button_rect and end_button_rect.collidepoint(event.pos):
+                    running = False
+                    show_results_screen(player_id, client)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    show_settings_screen(client, player_id)
+                    if not running:
+                        break
+                elif event.key == pygame.K_RETURN and selected_stock:
+                    if quantity > 0:
+                        cost = quantity * game_state["stocks"].get(selected_stock, 0)
+                        if player.get("konto", 0) >= cost:
+                            send_request("buy", selected_stock, quantity)
+                            quantity = 0
+                            persistent_error_message = ""
+                        else:
+                            persistent_error_message = "Nicht genügend Geld zum Kauf!"
+                    elif quantity < 0:
+                        if player.get(f"A{selected_stock.lower()}", 0) >= abs(quantity):
+                            send_request("sell", selected_stock, abs(quantity))
+                            quantity = 0
+                            persistent_error_message = ""
+                        else:
+                            persistent_error_message = "Nicht genügend Aktien zum Verkauf!"
+        
+        # Netzwerk-Check nach Events
         try:
             data = receive_full_message(client)
-            if data is None:
-                pygame.time.wait(5) # Reduziert auf 5ms für schnellere Checks
-                if time.time() - last_wait_message > 5:
-                    logging.info("Warte auf Daten...")
-                    print("Warte auf Daten...")
-                    last_wait_message = time.time()
-                continue
-            if data.strip():
+            if data:
                 try:
                     new_state = json.loads(data)
                     if new_state.get("action") == "name_changed":
@@ -155,37 +198,35 @@ def run_client(host, is_host=False, player_name=None):
                                 logging.error(f"Fehler: {player_id} nicht in game_state['players']")
                                 print(f"Fehler: {player_id} nicht in game_state['players']")
                                 running = False
-                                break
                 except json.JSONDecodeError as e:
                     logging.error(f"Fehler beim Parsen der empfangenen Daten: {e} (Daten: {data[:100]}...)")
                     print(f"Fehler beim Parsen der empfangenen Daten: {e} (Daten: {data[:100]}...)")
-                    continue
+            # Entferne periodischen wait und Logging
+        except BlockingIOError:
+            pass  # Keine Daten, normal weiter
         except ConnectionResetError:
             logging.warning(f"Verbindung zum Server wurde geschlossen")
             print(f"Verbindung zum Server wurde geschlossen")
             running = False
-            break
         except Exception as e:
             logging.error(f"Fehler in Hauptschleife: {e}, Typ: {type(e).__name__}")
             print(f"Fehler in Hauptschleife: {e}, Typ: {type(e).__name__}")
             running = False
-            break
+        
         if player_id not in game_state.get("players", {}):
             logging.error(f"Spieler {player_id} nicht mehr im Spiel!")
             print(f"Spieler {player_id} nicht mehr im Spiel!")
             running = False
-            break
-       
+        
         player = game_state["players"].get(player_id, {})
-       
+      
         if len(game_state["players"]) == 2 and player.get("game_over", False):
             running = False
             show_results_screen(player_id, client)
-            break
         if player.get("lost", False):
             running = False
             show_results_screen(player_id, client)
-            break
+        
         if background_image:
             screen.blit(background_image, (0, 0))
         else:
@@ -197,7 +238,7 @@ def run_client(host, is_host=False, player_name=None):
         draw_text("Multiplayer Börsenspiel", title_font, colors["BLACK"], screen.get_width() // 2 - 150, 40)
         draw_text(f"Spieler: {player_id}", font, colors["BLACK"], 10, 10)
         draw_text(f"Aktueller Spieler: {game_state['current_player']}", font, colors["BLACK"], screen.get_width() // 2 - 100, 80)
-       
+      
         current_round = player.get("game_round", 0)
         max_rounds = player.get("max_rounds", 50)
         remaining_rounds = max_rounds - current_round
@@ -272,7 +313,7 @@ def run_client(host, is_host=False, player_name=None):
         minus_1_button = Button("-1", start_x + 70, quantity_y, colors["RED"], width=button_width, height=button_height)
         plus_1_button = Button("+1", start_x + 180, quantity_y, colors["GREEN"], width=button_width, height=button_height)
         plus_10_button = Button("+10", start_x + 250, quantity_y, colors["GREEN"], width=button_width, height=button_height)
-       
+      
         minus_10_rect = minus_10_button.draw()
         minus_1_rect = minus_1_button.draw()
         minus_1_right = start_x + 70 + button_width
@@ -299,7 +340,7 @@ def run_client(host, is_host=False, player_name=None):
             card_button = Button("Karte ziehen", screen.get_width() // 2 - 100, screen.get_height() // 2 + 50, colors["BLUE"])
             if current_round >= max_rounds:
                 draw_text("Sie befinden sich in der letzten Runde. Gehen Sie in den Shop, um weitere Runden zu kaufen", font, colors["RED"], screen.get_width() // 2 - 300, screen.get_height() // 2 - 80)
-       
+      
         if game_state["current_player"] == player_id and not game_state["drawn_values"]:
             pulse_size += pulse_direction * 2
             if pulse_size >= 20 or pulse_size <= 0:
@@ -307,7 +348,7 @@ def run_client(host, is_host=False, player_name=None):
             card_button_rect = pygame.Rect(card_button.x - pulse_size, card_button.y - pulse_size,
                                           card_button.width + 2 * pulse_size, card_button.height + 2 * pulse_size)
             pygame.draw.rect(screen, colors["YELLOW"], card_button_rect, 4, border_radius=15)
-       
+      
         card_button_rect = card_button.draw()
         if current_round >= max_rounds:
             end_button = Button("Beenden", screen.get_width() // 2 - 100, screen.get_height() - 60, colors["ORANGE"])
@@ -318,53 +359,7 @@ def run_client(host, is_host=False, player_name=None):
             draw_text(persistent_error_message, pygame.font.Font(None, 36), colors["RED"], screen.get_width() // 2 - 200, card_button_rect.y + 70)
         if save_message:
             draw_text(save_message, pygame.font.Font(None, 36), colors["BLACK"], screen.get_width() // 2 - 200, screen.get_height() // 2)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                if is_host:
-                    server_running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if minus_10_rect.collidepoint(event.pos):
-                    quantity -= 10
-                elif minus_1_rect.collidepoint(event.pos):
-                    quantity -= 1
-                elif plus_1_rect.collidepoint(event.pos):
-                    quantity += 1
-                elif plus_10_rect.collidepoint(event.pos):
-                    quantity += 10
-                elif news_button_rect.collidepoint(event.pos):
-                    show_news_screen(player_id, client)
-                elif shop_button_rect.collidepoint(event.pos):
-                    show_shop_screen(player_id, client)
-                for stock, label in stock_labels.items():
-                    if label.collidepoint(event.pos):
-                        selected_stock = stock
-                if card_button_rect.collidepoint(event.pos):
-                    send_request("draw_card")
-                elif end_button_rect and end_button_rect.collidepoint(event.pos):
-                    running = False
-                    show_results_screen(player_id, client)
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    show_settings_screen(client, player_id)
-                    if not running:
-                        break
-                elif event.key == pygame.K_RETURN and selected_stock:
-                    if quantity > 0:
-                        cost = quantity * game_state["stocks"].get(selected_stock, 0)
-                        if player.get("konto", 0) >= cost:
-                            send_request("buy", selected_stock, quantity)
-                            quantity = 0
-                            persistent_error_message = ""
-                        else:
-                            persistent_error_message = "Nicht genügend Geld zum Kauf!"
-                    elif quantity < 0:
-                        if player.get(f"A{selected_stock.lower()}", 0) >= abs(quantity):
-                            send_request("sell", selected_stock, abs(quantity))
-                            quantity = 0
-                            persistent_error_message = ""
-                        else:
-                            persistent_error_message = "Nicht genügend Aktien zum Verkauf!"
+        
         pygame.display.flip()
         clock.tick(60)
     client.close()

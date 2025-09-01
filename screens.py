@@ -251,7 +251,7 @@ def show_news_screen(player_id, client):
         pygame.display.flip()
         clock.tick(60)
 
-def show_shop_screen(player_id, client):
+def show_shop_screen(player_id, client, send_request):
     shop_running = True
     player = game_state["players"].get(player_id, {})
     while shop_running:

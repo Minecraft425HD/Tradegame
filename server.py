@@ -83,16 +83,17 @@ def handle_client(conn, addr):
         return
     try:
         conn.setblocking(False)
-        last_broadcast = 0
+        last_heartbeat = time.time()  # Für Heartbeat-Broadcasts
         while server_running and conn.fileno() != -1:
             try:
                 data = receive_full_message(conn)
                 if data is None:
-                    time.sleep(0.01) # 10ms sleep
+                    # Heartbeat: Broadcast alle 1 Sekunde, wenn keine Aktion läuft
                     current_time = time.time()
-                    if current_time - last_broadcast >= 0.05:
+                    if current_time - last_heartbeat >= 1.0:
                         threading.Thread(target=broadcast_game_state, daemon=True).start()
-                        last_broadcast = current_time
+                        last_heartbeat = current_time
+                    time.sleep(0.1)  # 100ms Sleep für geringe CPU-Last
                     continue
                 if data.strip():
                     try:

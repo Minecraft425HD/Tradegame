@@ -3,10 +3,10 @@ import time
 from config import game_state, lock, clients, DEFAULT_HOST, logging
 
 def broadcast_game_state():
-    state_json = json.dumps({"game_state": game_state, "timestamp": time.time()}, ensure_ascii=False)
-    data_bytes = state_json.encode('utf-8')
-    length_prefix = len(data_bytes).to_bytes(4, byteorder='big')
-    with lock:
+    with lock:  # Lock während Dump für konsistenten Snapshot
+        state_json = json.dumps({"game_state": game_state, "timestamp": time.time()}, ensure_ascii=False)
+        data_bytes = state_json.encode('utf-8')
+        length_prefix = len(data_bytes).to_bytes(4, byteorder='big')
         clients_to_send = [c for c in clients if c.fileno() != -1]
     if not clients_to_send:
         logging.info("Keine Clients zum Senden des game_state.")
