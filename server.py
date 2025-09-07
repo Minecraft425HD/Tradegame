@@ -83,16 +83,16 @@ def handle_client(conn, addr):
         return
     try:
         conn.setblocking(False)
-        last_heartbeat = time.time()  # Für Heartbeat-Broadcasts
+        last_broadcast = 0  # Neu: Für Broadcast-Throttling
         while server_running and conn.fileno() != -1:
             try:
                 data = receive_full_message(conn)
                 if data is None:
-                    # Heartbeat: Broadcast alle 1 Sekunde, wenn keine Aktion läuft
+                    # Broadcast nur alle 2 Sekunden, wenn keine Aktion läuft
                     current_time = time.time()
-                    if current_time - last_heartbeat >= 1.0:
+                    if current_time - last_broadcast >= 2.0:  # Throttle auf 2 Sekunden
                         threading.Thread(target=broadcast_game_state, daemon=True).start()
-                        last_heartbeat = current_time
+                        last_broadcast = current_time
                     time.sleep(0.1)  # 100ms Sleep für geringe CPU-Last
                     continue
                 if data.strip():
@@ -120,8 +120,20 @@ def handle_client(conn, addr):
                                     conn.send(length_prefix + data_bytes)
                                     game_state["players"][player_id]["bytes_sent"] += len(length_prefix + data_bytes)
                                     threading.Thread(target=broadcast_game_state, daemon=True).start()
-                           
-                            if request["action"] == "draw_card" and game_state["current_player"] == player_id:
+                            elif request["action"] == "chat" and "message" in request:
+                                message = request["message"].strip()[:100]  # Max 100 Zeichen
+                                if message:
+                                    game_state["chat_history"].append({
+                                        "player": player_id,
+                                        "message": message,
+                                        "timestamp": time.time()
+                                    })
+                                    if len(game_state["chat_history"]) > 20:
+                                        game_state["chat_history"] = game_state["chat_history"][-20:]
+                                    logging.info(f"Chat-Nachricht von {player_id}: {message}")
+                                    print(f"Chat-Nachricht von {player_id}: {message}")
+                                    threading.Thread(target=broadcast_game_state, daemon=True).start()
+                            elif request["action"] == "draw_card" and game_state["current_player"] == player_id:
                                 draw_card_multiplayer(player_id)
                                 player_ids = list(game_state["players"].keys())
                                 current_idx = player_ids.index(player_id)

@@ -30,13 +30,14 @@ clients = []
 game_state = {
     "players": {},
     "drawn_values": {},
-    "stocks": {"Beyer": 100, "BMW": 100, "BP": 100, "Commerzbank": 100, "Bitcoin": 1000, "Ethereum": 1000, "Litecoin": 50, "Dogecoin": 10},
+    "stocks": {"Beyer": 100, "BMW": 100, "BP": 100, "Commerzbank": 100, "Bitcoin": 100000, "Ethereum": 10000, "Litecoin": 100, "Dogecoin": 80},
     "round": 0,
     "max_rounds": 50,
     "current_player": None,
     "start_time": None,
-    "last_event_text": ""
-}
+    "last_event_text": "",
+    "chat_history": []  # Neu: Liste für Chat-Nachrichten, z.B. [{"player": "player1", "message": "Hallo!", "timestamp": time}]
+    }
 
 # Ereigniskarten (Event Cards)
 ereigniskarten = [
