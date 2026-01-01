@@ -11,6 +11,24 @@ Ein rundenbasiertes Multiplayer-Börsenspiel für 2 Spieler, entwickelt mit Pyth
 - **Chat-System**: Kommunikation während des Spiels
 - **Speichern/Laden**: Automatisches Speichern des Spielstands
 
+### Erweiterte Features
+- **Achievements & Quests**: Über 30 freischaltbare Erfolge und tägliche Quests
+- **Progressions-System**: Spielerlevel mit XP und Belohnungen
+- **Turniere**: Wettbewerbe mit Preisgeldern
+- **Clans/Gilden**: Gemeinschaftliches Spielen mit Clan-Treasury
+- **Leerverkäufe**: Short-Selling mit Margin-System
+- **Dividenden**: Dividenden-Zahlungen und DRIP
+- **IPO-System**: Börsengang-Zeichnungen
+- **Marktnachrichten**: Dynamische News mit Kursauswirkungen
+
+### Technische Features
+- **Authentifizierung**: Token-basiertes Auth-System mit PBKDF2-Hashing
+- **Rate Limiting**: Schutz gegen Spam und DoS
+- **Input-Validierung**: XSS-Prävention und Sanitization
+- **Mehrsprachig**: Deutsch, Englisch, Französisch, Spanisch
+- **Anpassbare Tastenbelegung**: Frei konfigurierbare Shortcuts
+- **Export**: CSV/JSON Export für Statistiken
+
 ---
 
 ## Installation
@@ -151,22 +169,58 @@ Für Spiele über das Internet:
 
 ```
 Tradegame/
-├── start_game.py      # Cross-Platform Starter (empfohlen)
-├── start_game.sh      # macOS/Linux Shell-Skript
-├── Start.bat          # Windows Batch-Datei
-├── main.py            # Einstiegspunkt
-├── config.py          # Konfiguration
-├── constants.py       # Konstanten
-├── client.py          # Client-Logik
-├── server.py          # Server-Logik
-├── screens.py         # UI-Screens
-├── game_logic.py      # Spiellogik
-├── ui.py              # UI-Komponenten
-├── network.py         # Netzwerk-Protokoll
-├── Colors/            # Farbkonfiguration
-├── Variables/         # Spielvariablen
-├── background.jpg     # Hintergrundbild
-└── requirements.txt   # Python-Abhängigkeiten
+├── start_game.py        # Cross-Platform Starter (empfohlen)
+├── main.py              # Einstiegspunkt
+├── config.py            # Konfiguration
+├── constants.py         # Konstanten
+├── client.py            # Client-Logik
+├── server.py            # Server-Logik
+├── screens.py           # UI-Screens
+├── game_logic.py        # Spiellogik
+├── ui.py                # UI-Komponenten
+├── network.py           # Netzwerk-Protokoll
+│
+├── # Sicherheit & Infrastruktur
+├── auth_system.py       # Authentifizierung
+├── validation.py        # Input-Validierung
+├── rate_limiter.py      # Rate Limiting
+├── error_handling.py    # Fehlerbehandlung
+├── logging_config.py    # Logging-Konfiguration
+│
+├── # Feature-Module
+├── achievements_system.py
+├── progression_system.py
+├── quest_system.py
+├── clan_system.py
+├── tournament_system.py
+├── short_selling.py
+├── dividends_system.py
+├── ipo_system.py
+│
+├── tests/               # Unit Tests
+│   ├── test_game_logic.py
+│   ├── test_validation.py
+│   ├── test_auth.py
+│   └── test_rate_limiter.py
+│
+├── Colors/              # Farbkonfiguration
+├── Variables/           # Spielvariablen
+└── requirements.txt     # Python-Abhängigkeiten
+```
+
+---
+
+## Tests ausführen
+
+```bash
+# Alle Tests
+pytest
+
+# Mit Coverage
+pytest --cov=.
+
+# Einzelne Test-Datei
+pytest tests/test_auth.py
 ```
 
 ---

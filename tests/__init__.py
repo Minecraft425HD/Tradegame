@@ -1,0 +1,3 @@
+"""
+Unit Tests für Tradegame
+"""
