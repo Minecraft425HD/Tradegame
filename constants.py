@@ -21,6 +21,16 @@ MAX_GLOBAL_ROUNDS = 50  # Maximale globale Runden
 ROUNDS_PER_PURCHASE = 10  # Runden pro Kauf
 INITIAL_ROUND_PRICE = 1000  # Startpreis für Runden
 ROUND_PRICE_MULTIPLIER = 2  # Preismultiplikator nach Kauf
+MIN_PLAYERS = 2  # Minimale Spieleranzahl
+MAX_PLAYERS = 4  # Maximale Spieleranzahl
+
+# Spielerfarben für Multiplayer
+PLAYER_COLORS = [
+    (60, 100, 220),   # Blau (Spieler 1)
+    (220, 60, 60),    # Rot (Spieler 2)
+    (60, 180, 60),    # Grün (Spieler 3)
+    (220, 180, 40)    # Gelb (Spieler 4)
+]
 
 # ==================== AKTIEN ====================
 INITIAL_STOCK_PRICE = 100  # Startpreis normale Aktien

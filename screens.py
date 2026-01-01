@@ -3,6 +3,7 @@ import sys
 import time
 import socket
 import threading
+import json
 from config import colors, game_state, logging, server_running, lock
 from pygame_setup import clock, screen, fullscreen, native_width, native_height, background_image
 from ui import draw_text, Button, draw_input_box
@@ -10,50 +11,98 @@ from server import start_server
 from client import run_client
 from network import receive_full_message
 from game_logic import get_news_text
+from constants import PORT, MAX_PLAYERS
+
+# Import new systems
+from sound_system import sound_system
+from stock_charts import chart_system
+from ai_player import AIPlayer, ai_manager
+from highscores import highscore_system
+from game_modes import game_mode_manager
+from economy_system import dividend_system, loan_system, short_selling_system
+from theme_system import theme_manager
+from tutorial_system import tutorial_system
+from avatar_system import avatar_manager
+from pause_system import pause_system, PauseMenu
+from lobby_system import lobby_manager, LobbyBrowser
 
 def show_results_screen(player_id, client):
     results_running = True
     font = pygame.font.Font(None, 36)
     title_font = pygame.font.Font(None, 48)
     result_font = pygame.font.Font(None, 100)
-   
+
     game_duration = int(time.time() - game_state["start_time"]) if game_state["start_time"] else 0
     minutes = game_duration // 60
     seconds = game_duration % 60
-   
+
     players = list(game_state["players"].keys())
     opponent_id = [pid for pid in players if pid != player_id][0] if len(players) == 2 else "Mehrere Gegner"
     player = game_state["players"].get(player_id, {})
-   
+
     mb_sent = player.get("bytes_sent", 0) / (1024 * 1024)
     mb_received = player.get("bytes_received", 0) / (1024 * 1024)
-    screen.fill(colors["GRAY"])
-    if player.get("lost", False):
-        draw_text("LOSE", result_font, colors["BLACK"], screen.get_width() // 2 - 100, screen.get_height() // 2 - 50)
+
+    # Calculate final balance for highscore
+    final_balance = player.get("konto", 0)
+    is_winner = not player.get("lost", False)
+
+    # Save to highscores
+    highscore_system.add_score(
+        player_name=player_id,
+        final_balance=final_balance,
+        rounds_played=game_state.get("round", 0),
+        game_mode=game_mode_manager.get_mode().name if game_mode_manager.current_mode else "Klassisch",
+        won=is_winner
+    )
+
+    # Play result sound
+    if is_winner:
+        sound_system.play("win")
     else:
-        draw_text("WIN", result_font, colors["GREEN"], screen.get_width() // 2 - 100, screen.get_height() // 2 - 50)
+        sound_system.play("lose")
+
+    bg_color = theme_manager.get_color("background")
+    text_color = theme_manager.get_color("text")
+
+    screen.fill(bg_color)
+    if player.get("lost", False):
+        draw_text("VERLOREN", result_font, colors["RED"], screen.get_width() // 2 - 180, screen.get_height() // 2 - 50)
+    else:
+        draw_text("GEWONNEN!", result_font, colors["GREEN"], screen.get_width() // 2 - 200, screen.get_height() // 2 - 50)
     pygame.display.flip()
     pygame.time.wait(4000)
+
     while results_running:
-        screen.fill(colors["GRAY"])
-        draw_text("Spielergebnisse", title_font, colors["BLACK"], screen.get_width() // 2 - 150, 40)
-       
+        screen.fill(bg_color)
+        draw_text("Spielergebnisse", title_font, text_color, screen.get_width() // 2 - 150, 40)
+
         y_offset = 100
-        draw_text(f"Spieler {player_id} gegen {opponent_id}", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Spieler {player_id} gegen {opponent_id}", font, text_color, 50, y_offset)
         y_offset += 40
-        draw_text(f"Spielzeit: {minutes} Minuten {seconds} Sekunden", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Spielzeit: {minutes} Minuten {seconds} Sekunden", font, text_color, 50, y_offset)
         y_offset += 40
-        draw_text(f"Gekaufte Aktien/Kryptos: {player.get('bought_stocks', 0)}", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Endguthaben: {final_balance:,}$", font, colors["GREEN"] if is_winner else colors["RED"], 50, y_offset)
         y_offset += 40
-        draw_text(f"Verkaufserlöse: {player.get('sold_money', 0)}$", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Gekaufte Aktien/Kryptos: {player.get('bought_stocks', 0)}", font, text_color, 50, y_offset)
         y_offset += 40
-        draw_text(f"Verlorenes Geld: {player.get('lost_money', 0)}$", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Verkaufserlöse: {player.get('sold_money', 0):,}$", font, text_color, 50, y_offset)
         y_offset += 40
-        draw_text(f"Verlorene Aktien: {player.get('lost_stocks', 0)}", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Verlorenes Geld: {player.get('lost_money', 0):,}$", font, text_color, 50, y_offset)
         y_offset += 40
-        draw_text(f"Netzwerkdaten: {mb_sent:.2f} MB gesendet, {mb_received:.2f} MB empfangen", font, colors["BLACK"], 50, y_offset)
+        draw_text(f"Verlorene Aktien: {player.get('lost_stocks', 0)}", font, text_color, 50, y_offset)
+        y_offset += 40
+        draw_text(f"Netzwerkdaten: {mb_sent:.2f} MB gesendet, {mb_received:.2f} MB empfangen", font, text_color, 50, y_offset)
+
+        # Check highscore ranking
+        rank = highscore_system.get_rank(final_balance)
+        if rank is not None and rank <= 10:
+            y_offset += 50
+            draw_text(f"Neuer Highscore! Platz {rank}", pygame.font.Font(None, 42), colors["YELLOW"], 50, y_offset)
+
         back_button = Button("Zurück zum Hauptmenü", screen.get_width() // 2 - 100, screen.get_height() - 100, colors["BLUE"])
         back_button_rect = back_button.draw()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 results_running = False
@@ -62,6 +111,7 @@ def show_results_screen(player_id, client):
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if back_button_rect.collidepoint(event.pos):
+                    sound_system.play("click")
                     results_running = False
                     client.close()
                     show_main_menu()
@@ -70,6 +120,7 @@ def show_results_screen(player_id, client):
                     results_running = False
                     client.close()
                     show_main_menu()
+
         pygame.display.flip()
         clock.tick(60)
 
@@ -188,16 +239,50 @@ def show_lobby_screen():
 def show_main_menu():
     global server_running
     menu_running = True
+
+    # Play menu music
+    sound_system.play_music("menu_music.mp3")
+
     while menu_running:
-        screen.fill(colors["GRAY"])
-        draw_text("Hauptmenü", pygame.font.Font(None, 48), colors["BLACK"], screen.get_width() // 2 - 110, 40)
-       
+        # Apply current theme
+        bg_color = theme_manager.get_color("background")
+        text_color = theme_manager.get_color("text")
+
+        screen.fill(bg_color)
+        draw_text("Multiplayer Börsenspiel", pygame.font.Font(None, 56), text_color, screen.get_width() // 2 - 200, 30)
+        draw_text("Hauptmenü", pygame.font.Font(None, 42), text_color, screen.get_width() // 2 - 80, 80)
+
         mouse_pos = pygame.mouse.get_pos()
-        multiplayer_button = Button("Multiplayer", screen.get_width() // 2 - 100, 140, colors["BLUE"], hover=pygame.Rect(screen.get_width() // 2 - 100, 140, 200, 50).collidepoint(mouse_pos))
-        quit_button = Button("Beenden", screen.get_width() // 2 - 100, 210, colors["ORANGE"], hover=pygame.Rect(screen.get_width() // 2 - 100, 210, 200, 50).collidepoint(mouse_pos))
-       
+
+        # Menu buttons
+        button_x = screen.get_width() // 2 - 100
+        button_y_start = 140
+        button_spacing = 55
+
+        singleplayer_button = Button("Einzelspieler (KI)", button_x, button_y_start, colors["GREEN"],
+                                     hover=pygame.Rect(button_x, button_y_start, 200, 50).collidepoint(mouse_pos))
+        multiplayer_button = Button("Multiplayer", button_x, button_y_start + button_spacing, colors["BLUE"],
+                                    hover=pygame.Rect(button_x, button_y_start + button_spacing, 200, 50).collidepoint(mouse_pos))
+        highscores_button = Button("Bestenliste", button_x, button_y_start + button_spacing * 2, colors["YELLOW"],
+                                   hover=pygame.Rect(button_x, button_y_start + button_spacing * 2, 200, 50).collidepoint(mouse_pos))
+        tutorial_button = Button("Tutorial", button_x, button_y_start + button_spacing * 3, colors["PURPLE"] if "PURPLE" in colors else (128, 0, 128),
+                                 hover=pygame.Rect(button_x, button_y_start + button_spacing * 3, 200, 50).collidepoint(mouse_pos))
+        settings_button = Button("Einstellungen", button_x, button_y_start + button_spacing * 4, colors["ORANGE"],
+                                 hover=pygame.Rect(button_x, button_y_start + button_spacing * 4, 200, 50).collidepoint(mouse_pos))
+        quit_button = Button("Beenden", button_x, button_y_start + button_spacing * 5, colors["RED"],
+                             hover=pygame.Rect(button_x, button_y_start + button_spacing * 5, 200, 50).collidepoint(mouse_pos))
+
+        singleplayer_button_rect = singleplayer_button.draw()
         multiplayer_button_rect = multiplayer_button.draw()
+        highscores_button_rect = highscores_button.draw()
+        tutorial_button_rect = tutorial_button.draw()
+        settings_button_rect = settings_button.draw()
         quit_button_rect = quit_button.draw()
+
+        # Version info
+        version_font = pygame.font.Font(None, 22)
+        draw_text("v2.0 - Mit allen Features!", version_font, (150, 150, 150), 10, screen.get_height() - 25)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 menu_running = False
@@ -205,14 +290,334 @@ def show_main_menu():
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                sound_system.play("click")
                 if quit_button_rect.collidepoint(event.pos):
                     menu_running = False
                     server_running = False
                     pygame.quit()
                     sys.exit()
+                elif singleplayer_button_rect.collidepoint(event.pos):
+                    menu_running = False
+                    show_singleplayer_menu()
                 elif multiplayer_button_rect.collidepoint(event.pos):
                     menu_running = False
                     show_lobby_screen()
+                elif highscores_button_rect.collidepoint(event.pos):
+                    show_highscores_screen()
+                elif tutorial_button_rect.collidepoint(event.pos):
+                    show_tutorial_menu()
+                elif settings_button_rect.collidepoint(event.pos):
+                    show_main_settings_screen()
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def show_singleplayer_menu():
+    """Show singleplayer mode selection menu."""
+    global server_running
+    menu_running = True
+    selected_difficulty = "medium"
+    selected_mode = "classic"
+
+    difficulties = [
+        ("easy", "Leicht", "KI macht oft Fehler"),
+        ("medium", "Mittel", "Ausgewogene KI"),
+        ("hard", "Schwer", "KI spielt optimal")
+    ]
+
+    modes = [
+        ("classic", "Klassisch", "Standard Regeln"),
+        ("target", "Zielvermögen", "Erster mit 5 Mio$ gewinnt"),
+        ("survival", "Überleben", "Wer zuletzt pleite geht")
+    ]
+
+    while menu_running:
+        bg_color = theme_manager.get_color("background")
+        text_color = theme_manager.get_color("text")
+
+        screen.fill(bg_color)
+        draw_text("Einzelspieler", pygame.font.Font(None, 48), text_color, screen.get_width() // 2 - 100, 30)
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Difficulty selection
+        draw_text("Schwierigkeit:", pygame.font.Font(None, 32), text_color, 100, 100)
+        diff_buttons = []
+        for i, (diff_id, diff_name, diff_desc) in enumerate(difficulties):
+            is_selected = diff_id == selected_difficulty
+            color = colors["GREEN"] if is_selected else colors["GRAY"]
+            btn = Button(diff_name, 100 + i * 150, 140, color)
+            rect = btn.draw()
+            diff_buttons.append((rect, diff_id))
+            # Description
+            desc_font = pygame.font.Font(None, 20)
+            draw_text(diff_desc, desc_font, (150, 150, 150), 100 + i * 150, 195)
+
+        # Mode selection
+        draw_text("Spielmodus:", pygame.font.Font(None, 32), text_color, 100, 240)
+        mode_buttons = []
+        for i, (mode_id, mode_name, mode_desc) in enumerate(modes):
+            is_selected = mode_id == selected_mode
+            color = colors["BLUE"] if is_selected else colors["GRAY"]
+            btn = Button(mode_name, 100 + i * 180, 280, color)
+            rect = btn.draw()
+            mode_buttons.append((rect, mode_id))
+            # Description
+            desc_font = pygame.font.Font(None, 20)
+            draw_text(mode_desc, desc_font, (150, 150, 150), 100 + i * 180, 335)
+
+        # Start and Back buttons
+        start_button = Button("Spiel starten", screen.get_width() // 2 - 100, 400, colors["GREEN"],
+                             hover=pygame.Rect(screen.get_width() // 2 - 100, 400, 200, 50).collidepoint(mouse_pos))
+        back_button = Button("Zurück", screen.get_width() // 2 - 100, 470, colors["ORANGE"],
+                            hover=pygame.Rect(screen.get_width() // 2 - 100, 470, 200, 50).collidepoint(mouse_pos))
+
+        start_rect = start_button.draw()
+        back_rect = back_button.draw()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                sound_system.play("click")
+                # Check difficulty buttons
+                for rect, diff_id in diff_buttons:
+                    if rect.collidepoint(event.pos):
+                        selected_difficulty = diff_id
+                # Check mode buttons
+                for rect, mode_id in mode_buttons:
+                    if rect.collidepoint(event.pos):
+                        selected_mode = mode_id
+                # Start game
+                if start_rect.collidepoint(event.pos):
+                    menu_running = False
+                    start_singleplayer_game(selected_difficulty, selected_mode)
+                elif back_rect.collidepoint(event.pos):
+                    menu_running = False
+                    show_main_menu()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    menu_running = False
+                    show_main_menu()
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def start_singleplayer_game(difficulty, mode):
+    """Start a singleplayer game against AI."""
+    global server_running
+
+    # Set game mode
+    game_mode_manager.set_mode(mode)
+
+    # Create AI player
+    ai_player = ai_manager.create_ai("AI_Opponent", difficulty)
+
+    # Start local server
+    try:
+        threading.Thread(target=start_server, daemon=True).start()
+        pygame.time.wait(200)
+        server_running = True
+        logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
+
+        # Start client for human player
+        run_client("127.0.0.1", is_host=True, player_name="Spieler")
+
+    except Exception as e:
+        logging.error(f"Failed to start singleplayer: {e}")
+        show_main_menu()
+
+
+def show_highscores_screen():
+    """Show the highscores screen."""
+    running = True
+
+    while running:
+        bg_color = theme_manager.get_color("background")
+
+        screen.fill(bg_color)
+
+        # Draw highscore table
+        highscore_system.draw_highscore_table(screen, 50, 50, screen.get_width() - 100, screen.get_height() - 150)
+
+        # Back button
+        back_button = Button("Zurück", screen.get_width() // 2 - 100, screen.get_height() - 80, colors["BLUE"])
+        back_rect = back_button.draw()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if back_rect.collidepoint(event.pos):
+                    sound_system.play("click")
+                    running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def show_tutorial_menu():
+    """Show tutorial selection menu."""
+    running = True
+    tutorials = tutorial_system.get_available_tutorials()
+
+    while running:
+        bg_color = theme_manager.get_color("background")
+        text_color = theme_manager.get_color("text")
+
+        screen.fill(bg_color)
+        draw_text("Tutorial auswählen", pygame.font.Font(None, 48), text_color, screen.get_width() // 2 - 150, 30)
+
+        tutorial_buttons = []
+        for i, tutorial in enumerate(tutorials):
+            color = colors["GREEN"] if tutorial["completed"] else colors["BLUE"]
+            status = " ✓" if tutorial["completed"] else ""
+            btn = Button(f"{tutorial['name']}{status}", screen.get_width() // 2 - 100, 120 + i * 70, color)
+            rect = btn.draw()
+            tutorial_buttons.append((rect, tutorial["id"]))
+
+        back_button = Button("Zurück", screen.get_width() // 2 - 100, screen.get_height() - 100, colors["ORANGE"])
+        back_rect = back_button.draw()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                sound_system.play("click")
+                for rect, tut_id in tutorial_buttons:
+                    if rect.collidepoint(event.pos):
+                        tutorial_system.start_tutorial(tut_id)
+                        show_tutorial_screen()
+                if back_rect.collidepoint(event.pos):
+                    running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def show_tutorial_screen():
+    """Show active tutorial."""
+    running = True
+
+    while running and tutorial_system.is_tutorial_active():
+        bg_color = theme_manager.get_color("background")
+        screen.fill(bg_color)
+
+        # Draw tutorial overlay
+        button_rects = tutorial_system.draw_tutorial_overlay(screen, screen.get_width(), screen.get_height())
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rects:
+                    if button_rects.get("skip_rect") and button_rects["skip_rect"].collidepoint(event.pos):
+                        sound_system.play("click")
+                        tutorial_system.skip_tutorial()
+                        running = False
+                    elif button_rects.get("prev_rect") and button_rects["prev_rect"].collidepoint(event.pos):
+                        sound_system.play("click")
+                        tutorial_system.previous_step()
+                    elif button_rects.get("next_rect") and button_rects["next_rect"].collidepoint(event.pos):
+                        sound_system.play("click")
+                        tutorial_system.next_step()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    tutorial_system.skip_tutorial()
+                    running = False
+                elif event.key == pygame.K_RIGHT or event.key == pygame.K_RETURN:
+                    tutorial_system.next_step()
+                elif event.key == pygame.K_LEFT:
+                    tutorial_system.previous_step()
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+def show_main_settings_screen():
+    """Show main settings screen."""
+    running = True
+
+    while running:
+        bg_color = theme_manager.get_color("background")
+        text_color = theme_manager.get_color("text")
+
+        screen.fill(bg_color)
+        draw_text("Einstellungen", pygame.font.Font(None, 48), text_color, screen.get_width() // 2 - 100, 30)
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Settings buttons
+        button_x = screen.get_width() // 2 - 100
+
+        # Sound settings
+        sfx_status = "An" if sound_system.sfx_enabled else "Aus"
+        music_status = "An" if sound_system.music_enabled else "Aus"
+
+        sound_button = Button(f"Sound-Effekte: {sfx_status}", button_x, 120, colors["BLUE"],
+                             hover=pygame.Rect(button_x, 120, 200, 50).collidepoint(mouse_pos))
+        music_button = Button(f"Musik: {music_status}", button_x, 180, colors["BLUE"],
+                             hover=pygame.Rect(button_x, 180, 200, 50).collidepoint(mouse_pos))
+
+        # Theme settings
+        current_theme = theme_manager.current_theme
+        theme_button = Button(f"Theme: {current_theme.title()}", button_x, 240, colors["PURPLE"] if "PURPLE" in colors else (128, 0, 128),
+                             hover=pygame.Rect(button_x, 240, 200, 50).collidepoint(mouse_pos))
+
+        # Resolution
+        resolution_button = Button("Auflösung", button_x, 300, colors["ORANGE"],
+                                  hover=pygame.Rect(button_x, 300, 200, 50).collidepoint(mouse_pos))
+
+        # Back
+        back_button = Button("Zurück", button_x, 400, colors["GRAY"],
+                            hover=pygame.Rect(button_x, 400, 200, 50).collidepoint(mouse_pos))
+
+        sound_rect = sound_button.draw()
+        music_rect = music_button.draw()
+        theme_rect = theme_button.draw()
+        resolution_rect = resolution_button.draw()
+        back_rect = back_button.draw()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if sound_rect.collidepoint(event.pos):
+                    sound_system.toggle_sfx()
+                    sound_system.play("click")
+                elif music_rect.collidepoint(event.pos):
+                    sound_system.toggle_music()
+                    sound_system.play("click")
+                elif theme_rect.collidepoint(event.pos):
+                    # Cycle through themes
+                    themes = list(theme_manager.THEMES.keys())
+                    current_idx = themes.index(theme_manager.current_theme)
+                    next_idx = (current_idx + 1) % len(themes)
+                    theme_manager.set_theme(themes[next_idx])
+                    sound_system.play("click")
+                elif resolution_rect.collidepoint(event.pos):
+                    sound_system.play("click")
+                    display_resolution_settings()
+                elif back_rect.collidepoint(event.pos):
+                    sound_system.play("click")
+                    running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+
         pygame.display.flip()
         clock.tick(60)
 
