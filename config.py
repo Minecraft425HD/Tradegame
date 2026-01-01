@@ -6,6 +6,7 @@ import time
 import threading
 import socket
 import sys
+import os
 from Colors.color_config import load_colors
 from Variables.variables_config import load_variables
 from constants import (
@@ -14,9 +15,16 @@ from constants import (
     INITIAL_LITECOIN_PRICE, INITIAL_DOGECOIN_PRICE, MAX_CHAT_HISTORY
 )
 
+# Get the base directory (where this script is located)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def get_path(relative_path):
+    """Returns absolute path for a relative path, cross-platform compatible."""
+    return os.path.join(BASE_DIR, relative_path)
+
 # Configure logging with rotation
 log_handler = RotatingFileHandler(
-    LOG_FILE,
+    get_path(LOG_FILE),
     maxBytes=MAX_LOG_SIZE,
     backupCount=LOG_BACKUP_COUNT
 )
@@ -26,10 +34,10 @@ logging.basicConfig(
     handlers=[log_handler]
 )
 
-# Load colors and variables
-colors_file = "Colors/colors.json"
+# Load colors and variables (using cross-platform paths)
+colors_file = get_path(os.path.join("Colors", "colors.json"))
 colors = load_colors(colors_file)
-variables_file = "Variables/variables.json"
+variables_file = get_path(os.path.join("Variables", "variables.json"))
 initial_variables = load_variables(variables_file)
 
 # Multiplayer-Server Configuration (imported from constants)
@@ -116,7 +124,8 @@ ereigniskarten = [
 
 def load_news():
     try:
-        with open("news.txt", "r", encoding="utf-8") as file:
+        news_path = get_path("news.txt")
+        with open(news_path, "r", encoding="utf-8") as file:
             return json.load(file)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logging.error(f"Fehler beim Laden der News: {e}")
@@ -127,14 +136,15 @@ news_data = load_news()
 def save_game_state(filename="game_save.json"):
     """Speichert den aktuellen Spielzustand in eine Datei."""
     try:
+        filepath = get_path(filename)
         with lock:
             save_data = {
                 "game_state": game_state,
                 "timestamp": time.time()
             }
-        with open(filename, "w", encoding="utf-8") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(save_data, f, indent=4, ensure_ascii=False)
-        logging.info(f"Spielzustand gespeichert in {filename}")
+        logging.info(f"Spielzustand gespeichert in {filepath}")
         return True
     except Exception as e:
         logging.error(f"Fehler beim Speichern des Spielzustands: {e}")
@@ -144,11 +154,12 @@ def load_game_state(filename="game_save.json"):
     """Lädt einen gespeicherten Spielzustand."""
     global game_state
     try:
-        with open(filename, "r", encoding="utf-8") as f:
+        filepath = get_path(filename)
+        with open(filepath, "r", encoding="utf-8") as f:
             save_data = json.load(f)
         with lock:
             game_state.update(save_data.get("game_state", {}))
-        logging.info(f"Spielzustand geladen aus {filename}")
+        logging.info(f"Spielzustand geladen aus {filepath}")
         return True
     except FileNotFoundError:
         logging.warning(f"Keine Speicherdatei gefunden: {filename}")
