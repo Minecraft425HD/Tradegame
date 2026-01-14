@@ -410,26 +410,35 @@ def start_singleplayer_game(difficulty, mode):
     """Start a singleplayer game against AI."""
     global server_running
 
+    print(f"[DEBUG] Starting singleplayer: {difficulty}, {mode}")
+
     # Set game mode
     game_mode_manager.set_mode(mode)
 
     # Create AI player
+    print("[DEBUG] Creating AI player...")
     ai_player = ai_manager.create_ai("KI_Gegner", difficulty)
+    print(f"[DEBUG] AI player created")
 
     # Start local server
     try:
         # Start server in background
+        print("[DEBUG] Starting server thread...")
         server_thread = threading.Thread(target=start_server, daemon=True)
         server_thread.start()
 
         # Wait for server to be ready
-        pygame.time.wait(800)
+        print("[DEBUG] Waiting 1 second for server...")
+        pygame.time.wait(1000)
         server_running = True
+        print("[DEBUG] Server should be ready")
 
         # Register AI player with the server
+        print("[DEBUG] Registering AI player...")
         register_ai_player("KI_Gegner", ai_player)
 
         # Add AI player to game_state
+        print("[DEBUG] Adding AI to game_state...")
         with lock:
             ai_data = initial_variables.copy()
             ai_data["krypto"] = False
@@ -448,21 +457,26 @@ def start_singleplayer_game(difficulty, mode):
                 game_state["start_time"] = time.time()
             increment_state_version()
 
+        print("[DEBUG] AI added, starting client...")
         logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
 
         # Start client for human player
         result = run_client("127.0.0.1", is_host=True, player_name="Spieler")
+        print(f"[DEBUG] Client returned: {result}")
 
         # Return to main menu after game ends
         if result is False:
+            print("[DEBUG] Client connection FAILED")
             logging.warning("Client connection failed, returning to main menu")
 
     except Exception as e:
+        print(f"[DEBUG] EXCEPTION: {e}")
         logging.error(f"Failed to start singleplayer: {e}")
         import traceback
         traceback.print_exc()
 
     # Always return to main menu after singleplayer
+    print("[DEBUG] Returning to main menu...")
     show_main_menu()
 
 
