@@ -42,7 +42,7 @@ initial_variables = load_variables(variables_file)
 
 # Multiplayer-Server Configuration (imported from constants)
 server_running = False
-lock = threading.Lock()
+lock = threading.RLock()  # RLock allows same thread to acquire multiple times (prevents deadlock)
 clients = []
 client_heartbeats = {}  # Track last heartbeat time per client
 
