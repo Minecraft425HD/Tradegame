@@ -572,7 +572,7 @@ def show_main_settings_screen():
                              hover=pygame.Rect(button_x, 180, 200, 50).collidepoint(mouse_pos))
 
         # Theme settings
-        current_theme = theme_manager.current_theme
+        current_theme = theme_manager.current_theme_name
         theme_button = Button(f"Theme: {current_theme.title()}", button_x, 240, colors["PURPLE"] if "PURPLE" in colors else (128, 0, 128),
                              hover=pygame.Rect(button_x, 240, 200, 50).collidepoint(mouse_pos))
 
@@ -604,7 +604,7 @@ def show_main_settings_screen():
                 elif theme_rect.collidepoint(event.pos):
                     # Cycle through themes
                     themes = list(theme_manager.THEMES.keys())
-                    current_idx = themes.index(theme_manager.current_theme)
+                    current_idx = themes.index(theme_manager.current_theme_name)
                     next_idx = (current_idx + 1) % len(themes)
                     theme_manager.set_theme(themes[next_idx])
                     sound_system.play("click")
