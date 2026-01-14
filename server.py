@@ -80,6 +80,11 @@ def process_ai_turn():
 
         # Get AI decision
         decision = ai.make_decision()
+
+        # Handle None decision
+        if decision is None:
+            decision = {"action": "hold"}
+
         decision = ai.apply_difficulty_modifier(decision)
         ai.update_price_history()
 

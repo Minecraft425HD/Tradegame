@@ -418,8 +418,12 @@ def start_singleplayer_game(difficulty, mode):
 
     # Start local server
     try:
-        threading.Thread(target=start_server, daemon=True).start()
-        pygame.time.wait(500)  # Wait longer for server to initialize
+        # Start server in background
+        server_thread = threading.Thread(target=start_server, daemon=True)
+        server_thread.start()
+
+        # Wait for server to be ready
+        pygame.time.wait(800)
         server_running = True
 
         # Register AI player with the server
@@ -447,11 +451,19 @@ def start_singleplayer_game(difficulty, mode):
         logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
 
         # Start client for human player
-        run_client("127.0.0.1", is_host=True, player_name="Spieler")
+        result = run_client("127.0.0.1", is_host=True, player_name="Spieler")
+
+        # Return to main menu after game ends
+        if result is False:
+            logging.warning("Client connection failed, returning to main menu")
 
     except Exception as e:
         logging.error(f"Failed to start singleplayer: {e}")
-        show_main_menu()
+        import traceback
+        traceback.print_exc()
+
+    # Always return to main menu after singleplayer
+    show_main_menu()
 
 
 def show_highscores_screen():
