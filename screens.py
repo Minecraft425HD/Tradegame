@@ -439,25 +439,46 @@ def start_singleplayer_game(difficulty, mode):
 
         # Add AI player to game_state
         print("[DEBUG] Adding AI to game_state...")
+        print(f"[DEBUG] initial_variables: {initial_variables}")
+
+        # Create AI data outside lock to minimize lock time
+        ai_data = dict(initial_variables) if initial_variables else {
+            "konto": 10000,
+            "Abeyer": 0,
+            "Abmw": 0,
+            "Abp": 0,
+            "Acommerzbank": 0,
+            "Abitcoin": 0,
+            "Aethereum": 0,
+            "Alitecoin": 0,
+            "Adogecoin": 0,
+            "game_round": 0,
+            "max_rounds": 10
+        }
+        print("[DEBUG] ai_data base created")
+        ai_data["krypto"] = False
+        ai_data["lost"] = False
+        ai_data["game_over"] = False
+        ai_data["bought_stocks"] = 0
+        ai_data["sold_money"] = 0
+        ai_data["lost_money"] = 0
+        ai_data["lost_stocks"] = 0
+        ai_data["bytes_sent"] = 0
+        ai_data["bytes_received"] = 0
+        ai_data["running"] = True
+        ai_data["is_ai"] = True
+        print("[DEBUG] ai_data configured, acquiring lock...")
+
         with lock:
-            ai_data = initial_variables.copy()
-            ai_data["krypto"] = False
-            ai_data["lost"] = False
-            ai_data["game_over"] = False
-            ai_data["bought_stocks"] = 0
-            ai_data["sold_money"] = 0
-            ai_data["lost_money"] = 0
-            ai_data["lost_stocks"] = 0
-            ai_data["bytes_sent"] = 0
-            ai_data["bytes_received"] = 0
-            ai_data["running"] = True
-            ai_data["is_ai"] = True
+            print("[DEBUG] Lock acquired!")
             game_state["players"]["KI_Gegner"] = ai_data
+            print("[DEBUG] AI added to players")
             if game_state["start_time"] is None:
                 game_state["start_time"] = time.time()
             increment_state_version()
+            print("[DEBUG] State version incremented")
 
-        print("[DEBUG] AI added, starting client...")
+        print("[DEBUG] Lock released, starting client...")
         logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
 
         # Start client for human player
