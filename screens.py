@@ -4,10 +4,10 @@ import time
 import socket
 import threading
 import json
-from config import colors, game_state, logging, server_running, lock
+from config import colors, game_state, logging, server_running, lock, initial_variables, increment_state_version
 from pygame_setup import clock, screen, fullscreen, native_width, native_height, background_image
 from ui import draw_text, Button, draw_input_box
-from server import start_server
+from server import start_server, register_ai_player, ai_players
 from client import run_client
 from network import receive_full_message
 from game_logic import get_news_text
@@ -414,13 +414,36 @@ def start_singleplayer_game(difficulty, mode):
     game_mode_manager.set_mode(mode)
 
     # Create AI player
-    ai_player = ai_manager.create_ai("AI_Opponent", difficulty)
+    ai_player = ai_manager.create_ai("KI_Gegner", difficulty)
 
     # Start local server
     try:
         threading.Thread(target=start_server, daemon=True).start()
-        pygame.time.wait(200)
+        pygame.time.wait(500)  # Wait longer for server to initialize
         server_running = True
+
+        # Register AI player with the server
+        register_ai_player("KI_Gegner", ai_player)
+
+        # Add AI player to game_state
+        with lock:
+            ai_data = initial_variables.copy()
+            ai_data["krypto"] = False
+            ai_data["lost"] = False
+            ai_data["game_over"] = False
+            ai_data["bought_stocks"] = 0
+            ai_data["sold_money"] = 0
+            ai_data["lost_money"] = 0
+            ai_data["lost_stocks"] = 0
+            ai_data["bytes_sent"] = 0
+            ai_data["bytes_received"] = 0
+            ai_data["running"] = True
+            ai_data["is_ai"] = True
+            game_state["players"]["KI_Gegner"] = ai_data
+            if game_state["start_time"] is None:
+                game_state["start_time"] = time.time()
+            increment_state_version()
+
         logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
 
         # Start client for human player

@@ -13,6 +13,9 @@ from constants import (
 from game_logic import draw_card_multiplayer, buy_stock_multiplayer, sell_stock_multiplayer, buy_rounds_multiplayer, unlock_crypto_multiplayer
 from network import broadcast_game_state, receive_full_message
 
+# AI players registry (player_id -> ai_instance)
+ai_players = {}
+
 # Input validation functions
 def sanitize_string(text, max_length=100):
     """Sanitizes input string to prevent injection attacks."""
@@ -49,6 +52,91 @@ def validate_action(action):
     valid_actions = ["draw_card", "buy", "sell", "buy_rounds", "unlock_crypto", "chat", "set_name", "heartbeat"]
     return action in valid_actions
 
+
+def register_ai_player(player_id, ai_instance):
+    """Register an AI player with the server."""
+    global ai_players
+    ai_players[player_id] = ai_instance
+    logging.info(f"AI player registered: {player_id}")
+
+
+def is_ai_player(player_id):
+    """Check if a player is an AI."""
+    return player_id in ai_players
+
+
+def process_ai_turn():
+    """Process AI turn if current player is AI."""
+    global ai_players
+
+    with lock:
+        current = game_state.get("current_player")
+        if not current or current not in ai_players:
+            return False
+
+        ai = ai_players[current]
+        if current not in game_state["players"]:
+            return False
+
+        # Get AI decision
+        decision = ai.make_decision()
+        decision = ai.apply_difficulty_modifier(decision)
+        ai.update_price_history()
+
+        if not decision or decision.get("action") == "hold":
+            # AI passes - draw card and end turn
+            draw_card_multiplayer(current)
+            advance_to_next_player(current)
+            return True
+
+        action = decision.get("action")
+
+        # Process AI action
+        if action == "buy" and "stock" in decision and "quantity" in decision:
+            buy_stock_multiplayer(current, decision["stock"], decision["quantity"])
+            logging.info(f"AI {current} buys {decision['quantity']}x {decision['stock']}")
+        elif action == "sell" and "stock" in decision and "quantity" in decision:
+            sell_stock_multiplayer(current, decision["stock"], decision["quantity"])
+            logging.info(f"AI {current} sells {decision['quantity']}x {decision['stock']}")
+        elif action == "buy_rounds":
+            buy_rounds_multiplayer(current)
+            logging.info(f"AI {current} buys rounds")
+        elif action == "unlock_crypto":
+            unlock_crypto_multiplayer(current)
+            logging.info(f"AI {current} unlocks crypto")
+
+        # Draw card and advance turn
+        draw_card_multiplayer(current)
+        advance_to_next_player(current)
+
+        increment_state_version()
+        threading.Thread(target=broadcast_game_state, daemon=True).start()
+        return True
+
+
+def advance_to_next_player(current_player):
+    """Advance to the next player in turn order."""
+    player_ids = list(game_state["players"].keys())
+    if current_player in player_ids:
+        current_idx = player_ids.index(current_player)
+        next_idx = (current_idx + 1) % len(player_ids)
+        game_state["current_player"] = player_ids[next_idx]
+        increment_state_version()
+
+
+def ai_turn_loop():
+    """Background thread to process AI turns."""
+    global server_running
+    while server_running:
+        time.sleep(1.0)  # Check every second
+        try:
+            if is_ai_player(game_state.get("current_player")):
+                time.sleep(0.5)  # Small delay for realism
+                process_ai_turn()
+        except Exception as e:
+            logging.error(f"Error in AI turn loop: {e}")
+
+
 def start_server():
     global server_running
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,6 +152,10 @@ def start_server():
         # Start heartbeat checker thread
         heartbeat_thread = threading.Thread(target=check_heartbeats, daemon=True)
         heartbeat_thread.start()
+
+        # Start AI turn processing thread
+        ai_thread = threading.Thread(target=ai_turn_loop, daemon=True)
+        ai_thread.start()
 
         # Start auto-save thread
         autosave_thread = threading.Thread(target=auto_save_loop, daemon=True)
