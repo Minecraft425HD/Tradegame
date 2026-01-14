@@ -1,5 +1,6 @@
 import pygame
-from config import logging
+import os
+from config import logging, get_path
 
 pygame.init()
 display_info = pygame.display.Info()
@@ -11,10 +12,16 @@ clock = pygame.time.Clock()
 pygame.display.set_caption("Multiplayer Börsenspiel")
 pygame.font.init()
 
-# Background image
+# Background image (cross-platform path)
 try:
-    background_image = pygame.image.load("background.jpg")
-except pygame.error:
-    logging.error("Hintergrundbild konnte nicht geladen werden.")
-    print("Hintergrundbild konnte nicht geladen werden.")
+    background_path = get_path("background.jpg")
+    if os.path.exists(background_path):
+        background_image = pygame.image.load(background_path)
+        logging.info(f"Hintergrundbild geladen: {background_path}")
+    else:
+        logging.warning(f"Hintergrundbild nicht gefunden: {background_path}")
+        background_image = None
+except pygame.error as e:
+    logging.error(f"Hintergrundbild konnte nicht geladen werden: {e}")
+    print(f"Hintergrundbild konnte nicht geladen werden: {e}")
     background_image = None

@@ -1,7 +1,7 @@
 {
     "Beyer": {
-        "positive": "LOL",
-        "negative": "Beyer Aktie fällt um {change} Punkte!"
+        "positive": "Beyer Aktie steigt um {change} Punkte! Positive Studienergebnisse beflügeln den Kurs.",
+        "negative": "Beyer Aktie fällt um {change} Punkte! Negative Nachrichten belasten den Kurs."
     },
     "BMW": {
         "positive": "BMW Aktie steigt um {change} Punkte!",

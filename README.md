@@ -1,2 +1,254 @@
-# Tradegame (Multiplayer Only)
-This is my Tradegame i´ve developed. I´ts in early state.
+# Tradegame - Multiplayer Börsenspiel
+
+Ein rundenbasiertes Multiplayer-Börsenspiel für 2 Spieler, entwickelt mit Python und Pygame.
+
+## Features
+
+- **Multiplayer**: Host/Join über lokales Netzwerk oder Internet
+- **4 Aktien**: Beyer, BMW, BP, Commerzbank
+- **4 Kryptowährungen**: Bitcoin, Ethereum, Litecoin, Dogecoin (freischaltbar)
+- **Ereigniskarten**: 10 verschiedene Marktereignisse
+- **Chat-System**: Kommunikation während des Spiels
+- **Speichern/Laden**: Automatisches Speichern des Spielstands
+
+### Erweiterte Features
+- **Achievements & Quests**: Über 30 freischaltbare Erfolge und tägliche Quests
+- **Progressions-System**: Spielerlevel mit XP und Belohnungen
+- **Turniere**: Wettbewerbe mit Preisgeldern
+- **Clans/Gilden**: Gemeinschaftliches Spielen mit Clan-Treasury
+- **Leerverkäufe**: Short-Selling mit Margin-System
+- **Dividenden**: Dividenden-Zahlungen und DRIP
+- **IPO-System**: Börsengang-Zeichnungen
+- **Marktnachrichten**: Dynamische News mit Kursauswirkungen
+
+### Technische Features
+- **Authentifizierung**: Token-basiertes Auth-System mit PBKDF2-Hashing
+- **Rate Limiting**: Schutz gegen Spam und DoS
+- **Input-Validierung**: XSS-Prävention und Sanitization
+- **Mehrsprachig**: Deutsch, Englisch, Französisch, Spanisch
+- **Anpassbare Tastenbelegung**: Frei konfigurierbare Shortcuts
+- **Export**: CSV/JSON Export für Statistiken
+
+---
+
+## Installation
+
+### Voraussetzungen
+
+- **Python 3.8** oder höher
+- **pip** (Python Package Manager)
+
+### Windows
+
+1. **Python installieren**
+   - Download von [python.org](https://www.python.org/downloads/)
+   - Bei der Installation "Add Python to PATH" aktivieren!
+
+2. **Spiel herunterladen**
+   ```cmd
+   git clone https://github.com/Minecraft425HD/Tradegame.git
+   cd Tradegame
+   ```
+
+3. **Abhängigkeiten installieren**
+   ```cmd
+   pip install -r requirements.txt
+   ```
+
+4. **Spiel starten**
+   ```cmd
+   python start_game.py
+   ```
+
+   Oder Doppelklick auf `Start.bat`
+
+### macOS
+
+1. **Python installieren** (falls nicht vorhanden)
+   ```bash
+   # Mit Homebrew
+   brew install python3
+
+   # Oder Download von python.org
+   ```
+
+2. **Spiel herunterladen**
+   ```bash
+   git clone https://github.com/Minecraft425HD/Tradegame.git
+   cd Tradegame
+   ```
+
+3. **Abhängigkeiten installieren**
+   ```bash
+   pip3 install -r requirements.txt
+   ```
+
+4. **Spiel starten**
+   ```bash
+   python3 start_game.py
+   ```
+
+   Oder:
+   ```bash
+   chmod +x start_game.sh
+   ./start_game.sh
+   ```
+
+---
+
+## Spiel starten
+
+### Als Host (Server)
+
+1. Starte das Spiel
+2. Klicke auf "Multiplayer"
+3. Gib deinen Spielernamen ein
+4. Klicke auf "Host Game"
+5. Teile deine IP-Adresse mit dem anderen Spieler
+
+### Als Client (Beitreten)
+
+1. Starte das Spiel
+2. Klicke auf "Multiplayer"
+3. Gib die IP-Adresse des Hosts ein
+4. Gib deinen Spielernamen ein
+5. Klicke auf "Join Game"
+
+### IP-Adresse finden
+
+**Windows:**
+```cmd
+ipconfig
+```
+Suche nach "IPv4-Adresse"
+
+**macOS:**
+```bash
+ifconfig | grep "inet "
+```
+Oder: Systemeinstellungen → Netzwerk
+
+---
+
+## Spielsteuerung
+
+| Taste | Aktion |
+|-------|--------|
+| **T** | Chat öffnen |
+| **Enter** | Nachricht senden / Aktien kaufen/verkaufen |
+| **ESC** | Einstellungen / Chat schließen |
+| **Maus** | Buttons klicken, Aktien auswählen |
+
+---
+
+## Netzwerk-Konfiguration
+
+Das Spiel verwendet **Port 5556** (TCP).
+
+### Firewall-Einstellungen
+
+**Windows:**
+```cmd
+netsh advfirewall firewall add rule name="Tradegame" dir=in action=allow protocol=TCP localport=5556
+```
+
+**macOS:**
+- Systemeinstellungen → Sicherheit → Firewall → Firewall-Optionen
+- Eingehende Verbindungen für Python erlauben
+
+### Über Internet spielen
+
+Für Spiele über das Internet:
+1. Port 5556 im Router weiterleiten (Port Forwarding)
+2. Öffentliche IP-Adresse an den anderen Spieler geben
+   - Finde sie auf [whatismyip.com](https://whatismyip.com)
+
+---
+
+## Projektstruktur
+
+```
+Tradegame/
+├── start_game.py        # Cross-Platform Starter (empfohlen)
+├── main.py              # Einstiegspunkt
+├── config.py            # Konfiguration
+├── constants.py         # Konstanten
+├── client.py            # Client-Logik
+├── server.py            # Server-Logik
+├── screens.py           # UI-Screens
+├── game_logic.py        # Spiellogik
+├── ui.py                # UI-Komponenten
+├── network.py           # Netzwerk-Protokoll
+│
+├── # Sicherheit & Infrastruktur
+├── auth_system.py       # Authentifizierung
+├── validation.py        # Input-Validierung
+├── rate_limiter.py      # Rate Limiting
+├── error_handling.py    # Fehlerbehandlung
+├── logging_config.py    # Logging-Konfiguration
+│
+├── # Feature-Module
+├── achievements_system.py
+├── progression_system.py
+├── quest_system.py
+├── clan_system.py
+├── tournament_system.py
+├── short_selling.py
+├── dividends_system.py
+├── ipo_system.py
+│
+├── tests/               # Unit Tests
+│   ├── test_game_logic.py
+│   ├── test_validation.py
+│   ├── test_auth.py
+│   └── test_rate_limiter.py
+│
+├── Colors/              # Farbkonfiguration
+├── Variables/           # Spielvariablen
+└── requirements.txt     # Python-Abhängigkeiten
+```
+
+---
+
+## Tests ausführen
+
+```bash
+# Alle Tests
+pytest
+
+# Mit Coverage
+pytest --cov=.
+
+# Einzelne Test-Datei
+pytest tests/test_auth.py
+```
+
+---
+
+## Fehlerbehebung
+
+### "Pygame not found"
+```bash
+pip install pygame
+```
+
+### Verbindung fehlgeschlagen
+- Prüfe ob die IP-Adresse korrekt ist
+- Prüfe ob Port 5556 in der Firewall freigegeben ist
+- Prüfe ob beide im selben Netzwerk sind
+
+### Spiel startet nicht
+- Prüfe Python-Version: `python --version` (min. 3.8)
+- Installiere Abhängigkeiten neu: `pip install -r requirements.txt`
+
+---
+
+## Lizenz
+
+GNU General Public License v3.0
+
+---
+
+## Autor
+
+Minecraft425HD

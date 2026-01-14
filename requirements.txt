@@ -1,0 +1,9 @@
+# Tradegame Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core
+pygame>=2.5.0
+
+# Testing (optional)
+pytest>=7.0.0
+pytest-cov>=4.0.0
