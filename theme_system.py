@@ -129,6 +129,7 @@ class ThemeManager:
         self.current_theme_name = default_theme
         self.current_theme = THEMES.get(default_theme, THEMES["light"])
         self.custom_themes = {}
+        self.THEMES = THEMES  # Expose module constant as instance attribute
         self._load_custom_themes()
 
     def _load_custom_themes(self):
