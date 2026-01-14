@@ -11,6 +11,7 @@ class SoundSystem:
     def __init__(self):
         """Initialize the sound system."""
         self.enabled = True
+        self.sfx_enabled = True  # Alias for compatibility
         self.music_enabled = True
         self.sfx_volume = 0.7
         self.music_volume = 0.3
@@ -116,6 +117,7 @@ class SoundSystem:
     def toggle_sfx(self):
         """Toggle sound effects on/off."""
         self.enabled = not self.enabled
+        self.sfx_enabled = self.enabled  # Keep in sync
         return self.enabled
 
     def toggle_music(self):
