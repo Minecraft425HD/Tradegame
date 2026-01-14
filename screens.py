@@ -475,7 +475,8 @@ def start_singleplayer_game(difficulty, mode):
             print("[DEBUG] AI added to players")
             if game_state["start_time"] is None:
                 game_state["start_time"] = time.time()
-            increment_state_version()
+            # Manually increment - don't call increment_state_version() as it also uses lock (deadlock!)
+            game_state["state_version"] = game_state.get("state_version", 0) + 1
             print("[DEBUG] State version incremented")
 
         print("[DEBUG] Lock released, starting client...")
