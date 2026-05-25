@@ -15,12 +15,111 @@ from ui import draw_text, Button, draw_input_box, draw_stock_label
 from game_logic import get_news_text
 from network import receive_full_message
 
+def draw_card_popup(surface, drawn_values, event_text, news_texts):
+    """Zeigt ein ansprechendes Popup nach dem Kartenziehen."""
+    sw, sh = surface.get_width(), surface.get_height()
+
+    overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 185))
+    surface.blit(overlay, (0, 0))
+
+    num_entries = sum(1 for v in drawn_values.values() if v and v != "0")
+    popup_w = 520
+    popup_h = 160 + num_entries * 44 + len(news_texts) * 30
+    if event_text:
+        popup_h += 44
+    if news_texts:
+        popup_h += 18
+    popup_h = max(300, min(popup_h, sh - 80))
+
+    px = (sw - popup_w) // 2
+    py = (sh - popup_h) // 2
+
+    shadow_surf = pygame.Surface((popup_w + 20, popup_h + 20), pygame.SRCALPHA)
+    pygame.draw.rect(shadow_surf, (0, 0, 0, 90), (10, 10, popup_w, popup_h), border_radius=18)
+    surface.blit(shadow_surf, (px - 10, py - 10))
+
+    pygame.draw.rect(surface, (16, 26, 54), (px, py, popup_w, popup_h), border_radius=16)
+    pygame.draw.rect(surface, (55, 95, 175), (px, py, popup_w, popup_h), 2, border_radius=16)
+
+    header_h = 58
+    pygame.draw.rect(surface, (195, 150, 18), (px, py, popup_w, header_h),
+                     border_top_left_radius=16, border_top_right_radius=16)
+    pygame.draw.rect(surface, (140, 105, 8), (px, py + header_h - 3, popup_w, 3))
+
+    title_font = pygame.font.Font(None, 38)
+    title_surf = title_font.render("Marktnachrichten", True, (25, 12, 0))
+    surface.blit(title_surf, (px + popup_w // 2 - title_surf.get_width() // 2, py + 16))
+
+    mouse_pos = pygame.mouse.get_pos()
+    x_btn = pygame.Rect(px + popup_w - 44, py + 13, 30, 30)
+    x_hover = x_btn.collidepoint(mouse_pos)
+    pygame.draw.rect(surface, (210, 55, 55) if x_hover else (175, 40, 40), x_btn, border_radius=8)
+    xf = pygame.font.Font(None, 26)
+    xs = xf.render("X", True, (255, 255, 255))
+    surface.blit(xs, (x_btn.centerx - xs.get_width() // 2, x_btn.centery - xs.get_height() // 2))
+
+    y = py + header_h + 18
+    small_font = pygame.font.Font(None, 24)
+    mid_font = pygame.font.Font(None, 28)
+
+    if event_text:
+        ev_surf = small_font.render(str(event_text), True, (255, 215, 90))
+        surface.blit(ev_surf, (px + 20, y))
+        y += 32
+        pygame.draw.line(surface, (60, 90, 150), (px + 18, y), (px + popup_w - 18, y))
+        y += 12
+
+    for news_line in news_texts:
+        if len(news_line) > 62:
+            news_line = news_line[:59] + "..."
+        ns = small_font.render(news_line, True, (195, 200, 225))
+        surface.blit(ns, (px + 20, y))
+        y += 30
+
+    if news_texts:
+        pygame.draw.line(surface, (60, 90, 150), (px + 18, y + 4), (px + popup_w - 18, y + 4))
+        y += 18
+
+    for stock, value in drawn_values.items():
+        if not value or value == "0":
+            continue
+        try:
+            op, v = value.split()
+            is_pos = op == "+"
+            color = (70, 215, 85) if is_pos else (215, 70, 75)
+            bg_color = (25, 65, 35) if is_pos else (65, 25, 30)
+            entry_rect = pygame.Rect(px + 16, y - 4, popup_w - 32, 38)
+            pygame.draw.rect(surface, bg_color, entry_rect, border_radius=8)
+            pygame.draw.circle(surface, color, (px + 36, y + 14), 9)
+            stock_surf = mid_font.render(stock, True, (230, 230, 230))
+            surface.blit(stock_surf, (px + 54, y + 4))
+            change_text = f"{op}{v}$"
+            change_surf = mid_font.render(change_text, True, color)
+            surface.blit(change_surf, (px + popup_w - change_surf.get_width() - 24, y + 4))
+            y += 44
+        except Exception:
+            pass
+
+    close_rect = pygame.Rect(px + popup_w // 2 - 90, py + popup_h - 58, 180, 44)
+    close_hover = close_rect.collidepoint(mouse_pos)
+    close_color = (65, 135, 245) if close_hover else (45, 105, 210)
+    pygame.draw.rect(surface, close_color, close_rect, border_radius=13)
+    pygame.draw.rect(surface, (110, 165, 255), close_rect, 2, border_radius=13)
+    close_font = pygame.font.Font(None, 30)
+    close_text = close_font.render("Schliessen", True, (255, 255, 255))
+    surface.blit(close_text, (close_rect.centerx - close_text.get_width() // 2,
+                               close_rect.centery - close_text.get_height() // 2))
+
+    return close_rect, x_btn
+
+
 def validate_quantity(quantity):
     """Validates quantity is within acceptable range."""
     return -10000 <= quantity <= 10000
 
 def run_client(host, is_host=False, player_name=None):
-    from screens import show_news_screen, show_shop_screen, show_settings_screen, show_results_screen
+    from screens import show_shop_screen, show_settings_screen, show_results_screen
     global screen, fullscreen, server_running
 
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -170,18 +269,23 @@ def run_client(host, is_host=False, player_name=None):
     quantity = 0
     selected_stock = None
     persistent_error_message = ""
-    save_message = ""
     running = True
     pulse_size = 0
     pulse_direction = 1
     last_network_check = 0
+    card_popup_active = False
+    popup_event_text = ""
+    popup_drawn_values = {}
+    popup_news_texts = []
+    last_popup_trigger_values = dict(game_state.get("drawn_values", {}))
+    popup_close_btn_rect = pygame.Rect(0, 0, 0, 0)
+    popup_x_btn_rect = pygame.Rect(0, 0, 0, 0)
 
     # Initialize button rects to avoid reference before assignment
     minus_10_rect = pygame.Rect(0, 0, 0, 0)
     minus_1_rect = pygame.Rect(0, 0, 0, 0)
     plus_1_rect = pygame.Rect(0, 0, 0, 0)
     plus_10_rect = pygame.Rect(0, 0, 0, 0)
-    news_button_rect = pygame.Rect(0, 0, 0, 0)
     shop_button_rect = pygame.Rect(0, 0, 0, 0)
     card_button_rect = pygame.Rect(0, 0, 0, 0)
     end_button_rect = None
@@ -195,33 +299,38 @@ def run_client(host, is_host=False, player_name=None):
                 if is_host:
                     server_running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if minus_10_rect.collidepoint(event.pos):
-                    quantity = max(-10000, quantity - 10)
-                elif minus_1_rect.collidepoint(event.pos):
-                    quantity = max(-10000, quantity - 1)
-                elif plus_1_rect.collidepoint(event.pos):
-                    quantity = min(10000, quantity + 1)
-                elif plus_10_rect.collidepoint(event.pos):
-                    quantity = min(10000, quantity + 10)
-                elif news_button_rect.collidepoint(event.pos):
-                    show_news_screen(player_id, client)
-                elif shop_button_rect.collidepoint(event.pos):
-                    show_shop_screen(player_id, client, send_request)
-                elif card_button_rect.collidepoint(event.pos):
-                    if game_state["current_player"] == player_id:
-                        send_request("draw_card")
-                    else:
-                        persistent_error_message = f"Warte auf {game_state['current_player']}!"
-                elif end_button_rect and end_button_rect.collidepoint(event.pos):
-                    running = False
-                    show_results_screen(player_id, client)
+                if card_popup_active:
+                    if popup_close_btn_rect.collidepoint(event.pos) or popup_x_btn_rect.collidepoint(event.pos):
+                        card_popup_active = False
                 else:
-                    for stock, label in stock_labels.items():
-                        if label.collidepoint(event.pos):
-                            selected_stock = stock
-                            break
+                    if minus_10_rect.collidepoint(event.pos):
+                        quantity = max(-10000, quantity - 10)
+                    elif minus_1_rect.collidepoint(event.pos):
+                        quantity = max(-10000, quantity - 1)
+                    elif plus_1_rect.collidepoint(event.pos):
+                        quantity = min(10000, quantity + 1)
+                    elif plus_10_rect.collidepoint(event.pos):
+                        quantity = min(10000, quantity + 10)
+                    elif shop_button_rect.collidepoint(event.pos):
+                        show_shop_screen(player_id, client, send_request)
+                    elif card_button_rect.collidepoint(event.pos):
+                        if game_state["current_player"] == player_id:
+                            send_request("draw_card")
+                        else:
+                            persistent_error_message = f"Warte auf {game_state['current_player']}!"
+                    elif end_button_rect and end_button_rect.collidepoint(event.pos):
+                        running = False
+                        show_results_screen(player_id, client)
+                    else:
+                        for stock, label in stock_labels.items():
+                            if label.collidepoint(event.pos):
+                                selected_stock = stock
+                                break
             elif event.type == pygame.KEYDOWN:
-                if chat_active:
+                if card_popup_active:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_SPACE):
+                        card_popup_active = False
+                elif chat_active:
                     if event.key == pygame.K_RETURN:
                         if chat_input_text.strip():
                             if send_request("chat", message=chat_input_text):
@@ -294,10 +403,28 @@ def run_client(host, is_host=False, player_name=None):
                                         game_state["players"][player_id]["bytes_received"] += len(data.encode('utf-8'))
                                         logging.info(f"Game State aktualisiert: v{new_version}, stocks={game_state['stocks']}")
                                         print(f"Game State aktualisiert: v{new_version}")
+                                        _drawn_snap = dict(game_state.get("drawn_values", {}))
+                                        _event_snap = game_state.get("last_event_text", "")
                                     else:
                                         logging.error(f"Fehler: {player_id} nicht in game_state['players']")
                                         print(f"Fehler: {player_id} nicht in game_state['players']")
                                         running = False
+                                        _drawn_snap = {}
+                                        _event_snap = ""
+                                if _drawn_snap and _drawn_snap != last_popup_trigger_values:
+                                    popup_drawn_values = _drawn_snap
+                                    popup_event_text = _event_snap
+                                    popup_news_texts = []
+                                    for s, v in _drawn_snap.items():
+                                        if v and v != "0":
+                                            try:
+                                                op, n = v.split()
+                                                c = int(n) if op == "+" else -int(n)
+                                                popup_news_texts.append(get_news_text(s, c))
+                                            except Exception:
+                                                pass
+                                    card_popup_active = True
+                                    last_popup_trigger_values = dict(_drawn_snap)
                     except json.JSONDecodeError as e:
                         logging.error(f"Fehler beim Parsen: {e}")
                 last_network_check = current_time
@@ -379,9 +506,7 @@ def run_client(host, is_host=False, player_name=None):
                 draw_text(f"{value}$", small_font, colors["BLACK"], bar_start_x + MAX_BAR_LENGTH + 10, y_position - 10)
 
         mouse_pos = pygame.mouse.get_pos()
-        news_button = Button("News", screen.get_width() - 180, 10, colors["BLUE"], hover=pygame.Rect(screen.get_width() - 180, 10, 200, 50).collidepoint(mouse_pos))
-        shop_button = Button("Shop", screen.get_width() - 180, 70, colors["YELLOW"], hover=pygame.Rect(screen.get_width() - 180, 70, 200, 50).collidepoint(mouse_pos))
-        news_button_rect = news_button.draw()
+        shop_button = Button("Shop", screen.get_width() - 180, 10, colors["YELLOW"], hover=pygame.Rect(screen.get_width() - 180, 10, 200, 50).collidepoint(mouse_pos))
         shop_button_rect = shop_button.draw()
 
         draw_text("Dein Kontostand:", font, colors["BLACK"], 50, screen.get_height() - 350)
@@ -439,14 +564,37 @@ def run_client(host, is_host=False, player_name=None):
 
         is_my_turn = game_state["current_player"] == player_id
 
+        # Consolidated notice area (one place for all warnings/hints)
+        notice_text = ""
+        notice_color = colors["WHITE"]
+        if persistent_error_message:
+            notice_text = persistent_error_message
+            notice_color = (220, 60, 60)
+        elif current_round >= max_rounds:
+            notice_text = "Letzte Runde!  Shop fuer mehr Runden besuchen."
+            notice_color = (255, 200, 0)
+        elif not is_my_turn:
+            notice_text = f"Warten...  {game_state['current_player']} ist am Zug"
+            notice_color = (255, 150, 40)
+
+        if notice_text:
+            nf = pygame.font.Font(None, 26)
+            ns = nf.render(notice_text, True, notice_color)
+            nw = ns.get_width() + 24
+            nx = screen.get_width() // 2 - nw // 2
+            ny = 107
+            nbg = pygame.Surface((nw, 28), pygame.SRCALPHA)
+            nbg.fill((0, 0, 0, 165))
+            screen.blit(nbg, (nx, ny))
+            pygame.draw.rect(screen, (80, 80, 100), (nx, ny, nw, 28), 1, border_radius=5)
+            screen.blit(ns, (nx + 12, ny + 4))
+
         # Card display
         if game_state["drawn_values"]:
             card_width = 300
             card_height = 150
             x_margin = (screen.get_width() - card_width) // 2
             y_margin = (screen.get_height() - card_height) // 2 - 50
-            if current_round >= max_rounds:
-                draw_text("Sie befinden sich in der letzten Runde. Gehen Sie in den Shop, um weitere Runden zu kaufen", font, colors["RED"], x_margin - 150, y_margin - 30)
             pygame.draw.rect(screen, colors["BLACK"], (x_margin, y_margin, card_width, card_height), 2)
             draw_text("Karte", small_font, colors["BLACK"], x_margin + (card_width // 2) - 30, y_margin + 10)
             for i, (stock, value) in enumerate(game_state["drawn_values"].items()):
@@ -456,12 +604,6 @@ def run_client(host, is_host=False, player_name=None):
         else:
             card_color = colors["BLUE"] if is_my_turn else colors["GRAY"]
             card_button = Button("Karte ziehen", screen.get_width() // 2 - 100, screen.get_height() // 2 + 50, card_color)
-            if current_round >= max_rounds:
-                draw_text("Sie befinden sich in der letzten Runde. Gehen Sie in den Shop, um weitere Runden zu kaufen", font, colors["RED"], screen.get_width() // 2 - 300, screen.get_height() // 2 - 80)
-
-        if not is_my_turn:
-            draw_text(f"KI ({game_state['current_player']}) ist am Zug ...", font, colors["RED"],
-                      screen.get_width() // 2 - 120, screen.get_height() // 2 - 20)
 
         # Pulse animation for active player
         if is_my_turn and not game_state["drawn_values"]:
@@ -515,10 +657,10 @@ def run_client(host, is_host=False, player_name=None):
             pygame.draw.rect(screen, (0, 0, 0, 180), input_rect, 0)
             screen.blit(input_surface, (15, screen.get_height() - 28))
 
-        if persistent_error_message:
-            draw_text(persistent_error_message, pygame.font.Font(None, 36), colors["RED"], screen.get_width() // 2 - 200, card_button_rect.y + 70)
-        if save_message:
-            draw_text(save_message, pygame.font.Font(None, 36), colors["BLACK"], screen.get_width() // 2 - 200, screen.get_height() // 2)
+        if card_popup_active:
+            popup_close_btn_rect, popup_x_btn_rect = draw_card_popup(
+                screen, popup_drawn_values, popup_event_text, popup_news_texts
+            )
 
         pygame.display.flip()
         clock.tick(FPS)
