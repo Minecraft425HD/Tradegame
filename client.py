@@ -15,101 +15,189 @@ from ui import draw_text, Button, draw_input_box, draw_stock_label
 from game_logic import get_news_text
 from network import receive_full_message
 
-def draw_card_popup(surface, drawn_values, event_text, news_texts):
-    """Zeigt ein ansprechendes Popup nach dem Kartenziehen."""
+_COMPANY_META = {
+    "Beyer":       {"color": (210, 35, 55),  "bg": (90, 10, 18)},
+    "BMW":         {"color": (30, 110, 210),  "bg": (10, 35, 80)},
+    "BP":          {"color": (20, 170, 70),   "bg": (8, 60, 25)},
+    "Commerzbank": {"color": (255, 185, 0),   "bg": (70, 50, 0)},
+}
+_GENERIC_EVENT = "Ein zufälliges Marktereignis beeinflusst die Kurse."
+
+
+def _draw_company_icon(surface, stock, cx, cy, size=22):
+    """Draw a small styled company icon at centre (cx, cy)."""
+    r = size // 2
+    if stock == "Beyer":
+        # Red pharmaceutical cross
+        t = max(3, size // 5)
+        pygame.draw.rect(surface, (220, 30, 50), (cx - t, cy - r, t * 2, size))
+        pygame.draw.rect(surface, (220, 30, 50), (cx - r, cy - t, size, t * 2))
+        pygame.draw.rect(surface, (255, 80, 100), (cx - t, cy - r, t * 2, size), 1)
+    elif stock == "BMW":
+        # Simplified BMW circle quartered blue/white
+        pygame.draw.circle(surface, (0, 80, 190), (cx, cy), r)
+        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), r, 2)
+        pygame.draw.line(surface, (255, 255, 255), (cx, cy - r), (cx, cy + r), 1)
+        pygame.draw.line(surface, (255, 255, 255), (cx - r, cy), (cx + r, cy), 1)
+        pygame.draw.circle(surface, (0, 80, 190), (cx - r // 2, cy - r // 2), r // 2 - 1)
+        pygame.draw.circle(surface, (0, 80, 190), (cx + r // 2, cy + r // 2), r // 2 - 1)
+        pygame.draw.circle(surface, (255, 255, 255), (cx + r // 2, cy - r // 2), r // 2 - 1)
+        pygame.draw.circle(surface, (255, 255, 255), (cx - r // 2, cy + r // 2), r // 2 - 1)
+    elif stock == "BP":
+        # Green/yellow sunburst (BP logo style)
+        for angle_deg in range(0, 360, 45):
+            import math
+            a = math.radians(angle_deg)
+            x1 = cx + int((r - 2) * math.cos(a))
+            y1 = cy + int((r - 2) * math.sin(a))
+            x2 = cx + int((r // 2) * math.cos(a))
+            y2 = cy + int((r // 2) * math.sin(a))
+            pygame.draw.line(surface, (255, 210, 0), (x1, y1), (x2, y2), 2)
+        pygame.draw.circle(surface, (0, 150, 55), (cx, cy), r // 2 + 1)
+        pygame.draw.circle(surface, (0, 180, 70), (cx, cy), r // 3)
+    elif stock == "Commerzbank":
+        # Yellow diamond with gradient edge
+        pts = [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)]
+        pygame.draw.polygon(surface, (255, 185, 0), pts)
+        pygame.draw.polygon(surface, (200, 135, 0), pts, 2)
+        inner = r // 2
+        inner_pts = [(cx, cy - inner), (cx + inner, cy), (cx, cy + inner), (cx - inner, cy)]
+        pygame.draw.polygon(surface, (255, 220, 80), inner_pts)
+    else:
+        # Generic: colored circle with first letter
+        col = _COMPANY_META.get(stock, {}).get("color", (100, 140, 220))
+        pygame.draw.circle(surface, col, (cx, cy), r)
+        lf = pygame.font.Font(None, size + 4)
+        ls = lf.render(stock[0], True, (255, 255, 255))
+        surface.blit(ls, (cx - ls.get_width() // 2, cy - ls.get_height() // 2))
+
+
+def draw_card_popup(surface, drawn_values, event_text, news_by_stock, is_event_card=False):
+    """Zeigt ein ansprechendes Popup mit Unternehmenslogos und News-Texten."""
     sw, sh = surface.get_width(), surface.get_height()
 
     overlay = pygame.Surface((sw, sh), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 185))
+    overlay.fill((0, 0, 0, 190))
     surface.blit(overlay, (0, 0))
 
     num_entries = sum(1 for v in drawn_values.values() if v and v != "0")
-    popup_w = 520
-    popup_h = 160 + num_entries * 44 + len(news_texts) * 30
-    if event_text:
-        popup_h += 44
-    if news_texts:
-        popup_h += 18
-    popup_h = max(300, min(popup_h, sh - 80))
+    popup_w = 560
+    # Each combined stock+news entry takes 65px; event banner adds 46px
+    popup_h = 155 + num_entries * 65
+    if is_event_card and event_text:
+        popup_h += 46
+    popup_h = max(320, min(popup_h, sh - 60))
 
     px = (sw - popup_w) // 2
     py = (sh - popup_h) // 2
 
-    shadow_surf = pygame.Surface((popup_w + 20, popup_h + 20), pygame.SRCALPHA)
-    pygame.draw.rect(shadow_surf, (0, 0, 0, 90), (10, 10, popup_w, popup_h), border_radius=18)
-    surface.blit(shadow_surf, (px - 10, py - 10))
+    # Drop shadow
+    sh_surf = pygame.Surface((popup_w + 24, popup_h + 24), pygame.SRCALPHA)
+    pygame.draw.rect(sh_surf, (0, 0, 0, 80), (12, 12, popup_w, popup_h), border_radius=20)
+    surface.blit(sh_surf, (px - 12, py - 12))
 
-    pygame.draw.rect(surface, (16, 26, 54), (px, py, popup_w, popup_h), border_radius=16)
-    pygame.draw.rect(surface, (55, 95, 175), (px, py, popup_w, popup_h), 2, border_radius=16)
+    # Background
+    pygame.draw.rect(surface, (14, 22, 50), (px, py, popup_w, popup_h), border_radius=18)
+    pygame.draw.rect(surface, (50, 90, 170), (px, py, popup_w, popup_h), 2, border_radius=18)
 
-    header_h = 58
-    pygame.draw.rect(surface, (195, 150, 18), (px, py, popup_w, header_h),
-                     border_top_left_radius=16, border_top_right_radius=16)
-    pygame.draw.rect(surface, (140, 105, 8), (px, py + header_h - 3, popup_w, 3))
-
-    title_font = pygame.font.Font(None, 38)
-    title_surf = title_font.render("Marktnachrichten", True, (25, 12, 0))
-    surface.blit(title_surf, (px + popup_w // 2 - title_surf.get_width() // 2, py + 16))
+    # Header
+    header_h = 60
+    header_col = (160, 40, 40) if is_event_card else (195, 150, 18)
+    header_edge = (110, 20, 20) if is_event_card else (140, 105, 8)
+    pygame.draw.rect(surface, header_col, (px, py, popup_w, header_h),
+                     border_top_left_radius=18, border_top_right_radius=18)
+    pygame.draw.rect(surface, header_edge, (px, py + header_h - 4, popup_w, 4))
 
     mouse_pos = pygame.mouse.get_pos()
-    x_btn = pygame.Rect(px + popup_w - 44, py + 13, 30, 30)
-    x_hover = x_btn.collidepoint(mouse_pos)
-    pygame.draw.rect(surface, (210, 55, 55) if x_hover else (175, 40, 40), x_btn, border_radius=8)
-    xf = pygame.font.Font(None, 26)
+    title_font = pygame.font.Font(None, 40)
+    title_text = "EREIGNISKARTE!" if is_event_card else "Marktnachrichten"
+    title_col = (255, 220, 220) if is_event_card else (28, 14, 0)
+    title_surf = title_font.render(title_text, True, title_col)
+    surface.blit(title_surf, (px + popup_w // 2 - title_surf.get_width() // 2, py + 16))
+
+    # X close button
+    x_btn = pygame.Rect(px + popup_w - 46, py + 14, 28, 28)
+    pygame.draw.rect(surface, (210, 55, 55) if x_btn.collidepoint(mouse_pos) else (170, 35, 35),
+                     x_btn, border_radius=7)
+    xf = pygame.font.Font(None, 24)
     xs = xf.render("X", True, (255, 255, 255))
     surface.blit(xs, (x_btn.centerx - xs.get_width() // 2, x_btn.centery - xs.get_height() // 2))
 
-    y = py + header_h + 18
-    small_font = pygame.font.Font(None, 24)
+    y = py + header_h + 14
+    small_font = pygame.font.Font(None, 23)
     mid_font = pygame.font.Font(None, 28)
+    bold_font = pygame.font.Font(None, 30)
 
-    if event_text:
-        ev_surf = small_font.render(str(event_text), True, (255, 215, 90))
-        surface.blit(ev_surf, (px + 20, y))
-        y += 32
-        pygame.draw.line(surface, (60, 90, 150), (px + 18, y), (px + popup_w - 18, y))
-        y += 12
+    # Event card banner (dramatic event description)
+    if is_event_card and event_text:
+        ev_bg = pygame.Surface((popup_w - 24, 38), pygame.SRCALPHA)
+        ev_bg.fill((120, 30, 30, 200))
+        surface.blit(ev_bg, (px + 12, y))
+        pygame.draw.rect(surface, (200, 80, 80), (px + 12, y, popup_w - 24, 38), 1, border_radius=6)
+        txt = event_text if len(event_text) <= 66 else event_text[:63] + "..."
+        ev_surf = small_font.render(txt, True, (255, 200, 200))
+        surface.blit(ev_surf, (px + 22, y + 10))
+        y += 46
 
-    for news_line in news_texts:
-        if len(news_line) > 62:
-            news_line = news_line[:59] + "..."
-        ns = small_font.render(news_line, True, (195, 200, 225))
-        surface.blit(ns, (px + 20, y))
-        y += 30
-
-    if news_texts:
-        pygame.draw.line(surface, (60, 90, 150), (px + 18, y + 4), (px + popup_w - 18, y + 4))
-        y += 18
-
+    # Stock entries — each with icon, name, news headline, and price change
     for stock, value in drawn_values.items():
         if not value or value == "0":
             continue
         try:
             op, v = value.split()
+            val_int = int(v)
             is_pos = op == "+"
-            color = (70, 215, 85) if is_pos else (215, 70, 75)
-            bg_color = (25, 65, 35) if is_pos else (65, 25, 30)
-            entry_rect = pygame.Rect(px + 16, y - 4, popup_w - 32, 38)
-            pygame.draw.rect(surface, bg_color, entry_rect, border_radius=8)
-            pygame.draw.circle(surface, color, (px + 36, y + 14), 9)
-            stock_surf = mid_font.render(stock, True, (230, 230, 230))
-            surface.blit(stock_surf, (px + 54, y + 4))
-            change_text = f"{op}{v}$"
-            change_surf = mid_font.render(change_text, True, color)
-            surface.blit(change_surf, (px + popup_w - change_surf.get_width() - 24, y + 4))
-            y += 44
+            fg_color = (65, 220, 90) if is_pos else (220, 65, 70)
+            meta = _COMPANY_META.get(stock, {"color": fg_color, "bg": (30, 30, 60)})
+            entry_bg = (20, 55, 28) if is_pos else (58, 18, 22)
+            border_col = (45, 130, 55) if is_pos else (130, 40, 45)
+
+            # Entry card background
+            entry_rect = pygame.Rect(px + 12, y, popup_w - 24, 60)
+            pygame.draw.rect(surface, entry_bg, entry_rect, border_radius=10)
+            pygame.draw.rect(surface, border_col, entry_rect, 1, border_radius=10)
+
+            # Company icon (left)
+            _draw_company_icon(surface, stock, px + 38, y + 30, size=24)
+
+            # Stock name (top line)
+            name_surf = bold_font.render(stock, True, (230, 235, 255))
+            surface.blit(name_surf, (px + 62, y + 7))
+
+            # News headline (bottom line, smaller)
+            headline = news_by_stock.get(stock, "")
+            if len(headline) > 58:
+                headline = headline[:55] + "..."
+            hl_surf = small_font.render(headline, True, (175, 185, 210))
+            surface.blit(hl_surf, (px + 62, y + 33))
+
+            # Price change (right side)
+            change_str = f"{op}{v}$"
+            ch_surf = bold_font.render(change_str, True, fg_color)
+            ch_x = px + popup_w - ch_surf.get_width() - 20
+            surface.blit(ch_surf, (ch_x, y + 7))
+
+            # Trend bar (right side, below change)
+            bar_max = 80
+            bar_len = min(bar_max, max(6, int(val_int / 5)))
+            bar_y = y + 36
+            bar_bg_rect = pygame.Rect(ch_x, bar_y, bar_max, 10)
+            pygame.draw.rect(surface, (40, 50, 40) if is_pos else (50, 35, 35), bar_bg_rect, border_radius=4)
+            pygame.draw.rect(surface, fg_color, (ch_x, bar_y, bar_len, 10), border_radius=4)
+
+            y += 65
         except Exception:
             pass
 
-    close_rect = pygame.Rect(px + popup_w // 2 - 90, py + popup_h - 58, 180, 44)
-    close_hover = close_rect.collidepoint(mouse_pos)
-    close_color = (65, 135, 245) if close_hover else (45, 105, 210)
-    pygame.draw.rect(surface, close_color, close_rect, border_radius=13)
+    # Close button
+    close_rect = pygame.Rect(px + popup_w // 2 - 95, py + popup_h - 55, 190, 44)
+    c_hover = close_rect.collidepoint(mouse_pos)
+    pygame.draw.rect(surface, (60, 130, 245) if c_hover else (42, 100, 210), close_rect, border_radius=13)
     pygame.draw.rect(surface, (110, 165, 255), close_rect, 2, border_radius=13)
-    close_font = pygame.font.Font(None, 30)
-    close_text = close_font.render("Schliessen", True, (255, 255, 255))
-    surface.blit(close_text, (close_rect.centerx - close_text.get_width() // 2,
-                               close_rect.centery - close_text.get_height() // 2))
+    cf = pygame.font.Font(None, 30)
+    ct = cf.render("Schliessen  [Esc]", True, (255, 255, 255))
+    surface.blit(ct, (close_rect.centerx - ct.get_width() // 2,
+                       close_rect.centery - ct.get_height() // 2))
 
     return close_rect, x_btn
 
@@ -276,7 +364,8 @@ def run_client(host, is_host=False, player_name=None):
     card_popup_active = False
     popup_event_text = ""
     popup_drawn_values = {}
-    popup_news_texts = []
+    popup_news_by_stock = {}
+    popup_is_event_card = False
     last_popup_trigger_values = dict(game_state.get("drawn_values", {}))
     popup_close_btn_rect = pygame.Rect(0, 0, 0, 0)
     popup_x_btn_rect = pygame.Rect(0, 0, 0, 0)
@@ -414,15 +503,18 @@ def run_client(host, is_host=False, player_name=None):
                                 if _drawn_snap and _drawn_snap != last_popup_trigger_values:
                                     popup_drawn_values = _drawn_snap
                                     popup_event_text = _event_snap
-                                    popup_news_texts = []
+                                    popup_news_by_stock = {}
                                     for s, v in _drawn_snap.items():
                                         if v and v != "0":
                                             try:
                                                 op, n = v.split()
                                                 c = int(n) if op == "+" else -int(n)
-                                                popup_news_texts.append(get_news_text(s, c))
+                                                popup_news_by_stock[s] = get_news_text(s, c)
                                             except Exception:
                                                 pass
+                                    popup_is_event_card = bool(
+                                        _event_snap and _event_snap != _GENERIC_EVENT
+                                    )
                                     card_popup_active = True
                                     last_popup_trigger_values = dict(_drawn_snap)
                     except json.JSONDecodeError as e:
@@ -659,7 +751,8 @@ def run_client(host, is_host=False, player_name=None):
 
         if card_popup_active:
             popup_close_btn_rect, popup_x_btn_rect = draw_card_popup(
-                screen, popup_drawn_values, popup_event_text, popup_news_texts
+                screen, popup_drawn_values, popup_event_text,
+                popup_news_by_stock, popup_is_event_card
             )
 
         pygame.display.flip()

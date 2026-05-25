@@ -1,18 +1,82 @@
 {
     "Beyer": {
-        "positive": "Beyer Aktie steigt um {change} Punkte! Positive Studienergebnisse beflügeln den Kurs.",
-        "negative": "Beyer Aktie fällt um {change} Punkte! Negative Nachrichten belasten den Kurs."
+        "positive": [
+            "Neue Studie bestätigt Durchbruch: Beyer springt um {change} Punkte!",
+            "FDA-Zulassung erteilt – Beyer-Aktie klettert {change} Punkte nach oben.",
+            "Starke Quartalszahlen beflügeln Beyer um +{change} Punkte.",
+            "Asien-Expansion begeistert Investoren: Beyer legt {change} Punkte zu.",
+            "Analystenupgrade treibt Beyer um {change} Punkte in die Höhe.",
+            "Beyer sichert Milliardenauftrag: Kurs springt um {change} Punkte!",
+            "Patentschutz verlängert – Beyer steigt um {change} Punkte."
+        ],
+        "negative": [
+            "Rückrufaktion erschüttert Beyer: Kurs fällt um {change} Punkte.",
+            "Patentklage belastet Beyer mit {change} Punkten Verlust.",
+            "Enttäuschende Studiendaten: Beyer gibt {change} Punkte ab.",
+            "Behördenprüfung lähmt Beyer – Minus {change} Punkte!",
+            "Umsatzwarnung: Beyer-Kurs bricht um {change} Punkte ein.",
+            "Konkurrenzprodukt zugelassen: Beyer verliert {change} Punkte.",
+            "CEO tritt zurück – Anleger fliehen: -{change} Punkte."
+        ]
     },
     "BMW": {
-        "positive": "BMW Aktie steigt um {change} Punkte!",
-        "negative": "BMW Aktie fällt um {change} Punkte!"
+        "positive": [
+            "Rekordumsatz bei BMW: Aktie steigt um {change} Punkte!",
+            "Neues Elektromodell begeistert Markt – BMW plus {change} Punkte.",
+            "Exportboom treibt BMW-Kurs um {change} Punkte hoch.",
+            "Analysten erhöhen Kursziel: BMW gewinnt {change} Punkte.",
+            "BMW schlägt Erwartungen – Aktie springt um {change} Punkte!",
+            "Luxus-SUV ausverkauft: BMW-Kurs steigt um {change} Punkte.",
+            "Strategische Partnerschaft mit Tech-Konzern: BMW +{change} Punkte."
+        ],
+        "negative": [
+            "Chipkrise bremst BMW: Aktie fällt um {change} Punkte.",
+            "Rückruf von 50.000 Fahrzeugen: BMW gibt {change} Punkte ab.",
+            "Absatzschwäche in China belastet BMW um {change} Punkte.",
+            "Emissionsstreit drückt BMW-Kurs um {change} Punkte.",
+            "Produktionsstillstand: BMW verliert {change} Punkte.",
+            "Streik im Münchner Werk – BMW bricht um {change} Punkte ein.",
+            "Gewinnwarnung verunsichert Märkte: BMW minus {change} Punkte."
+        ]
     },
     "BP": {
-        "positive": "BP Aktie steigt um {change} Punkte!",
-        "negative": "BP Aktie fällt um {change} Punkte!"
+        "positive": [
+            "Ölpreis steigt: BP-Aktie klettert um {change} Punkte!",
+            "Neue Offshore-Quelle entdeckt – BP gewinnt {change} Punkte.",
+            "BP erhöht Dividende: Kurs springt um {change} Punkte.",
+            "Großauftrag in der Nordsee gesichert: BP legt {change} Punkte zu.",
+            "Rekordquartal bei BP – plus {change} Punkte!",
+            "Solarenergievertrag beflügelt BP: +{change} Punkte.",
+            "OPEC-Förderkürzung treibt BP um {change} Punkte hoch."
+        ],
+        "negative": [
+            "Ölpreis bricht ein: BP verliert {change} Punkte.",
+            "Umweltkatastrophe im Golf belastet BP um {change} Punkte.",
+            "OPEC erhöht Fördermenge: BP fällt um {change} Punkte.",
+            "Milliardenstrafe droht: BP gibt {change} Punkte ab.",
+            "Raffinerie-Unfall drückt BP-Kurs um {change} Punkte.",
+            "Erneuerbare verdrängen Öl: BP bricht um {change} Punkte ein.",
+            "Bohrlizenzen entzogen: BP-Aktie fällt um {change} Punkte."
+        ]
     },
     "Commerzbank": {
-        "positive": "Commerzbank Aktie steigt um {change} Punkte!",
-        "negative": "Commerzbank Aktie fällt um {change} Punkte!"
+        "positive": [
+            "Zinserhöhung beflügelt Commerzbank: plus {change} Punkte!",
+            "Fusionsgespräche treiben Commerzbank um {change} Punkte hoch.",
+            "Rekordgewinn überrascht Analysten: Commerzbank +{change} Punkte.",
+            "Neue Digitalstrategie überzeugt – Commerzbank +{change} Punkte.",
+            "Analysten stufen Commerzbank auf Kaufen hoch: +{change} Punkte.",
+            "Privatkundengeschäft boomt: Commerzbank steigt um {change} Punkte.",
+            "Expansionskurs zahlt sich aus: Commerzbank plus {change} Punkte."
+        ],
+        "negative": [
+            "Kreditausfälle belasten Commerzbank: minus {change} Punkte.",
+            "Regulierungsstrafe drückt Commerzbank um {change} Punkte.",
+            "Zinssenkung trifft Bankensektor: Commerzbank fällt {change} Punkte.",
+            "CEO-Rücktritt erschüttert Commerzbank: minus {change} Punkte.",
+            "Sparmaßnahmen verunsichern Anleger: -{change} Punkte.",
+            "Cyberangriff legt IT lahm: Commerzbank minus {change} Punkte.",
+            "Geldwäsche-Ermittlung: Commerzbank bricht um {change} Punkte ein."
+        ]
     }
 }
