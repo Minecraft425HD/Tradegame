@@ -70,34 +70,45 @@ class AIPlayer:
         if player.get("krypto", False):
             stocks.extend(CRYPTO_STOCKS)
 
-        # Find stocks with upward trend
+        konto = player.get("konto", 0)
+
+        # Find normal stocks with upward trend (ignore crypto for trend analysis)
         best_stock = None
         best_change = -float('inf')
 
-        for stock in stocks:
+        for stock in NORMAL_STOCKS:
             old_price = self.last_prices.get(stock, prices[stock])
             change = prices[stock] - old_price
             if change > best_change:
                 best_change = change
                 best_stock = stock
 
-        # Aggressive: buy rising stocks, sell falling ones
+        # Buy the most-rising stock aggressively
         if best_stock and best_change > 0:
-            # Buy rising stock
-            max_affordable = player.get("konto", 0) // prices[best_stock]
-            quantity = min(max_affordable, random.randint(5, 15))
-            if quantity > 0:
-                return {"action": "buy", "stock": best_stock, "quantity": quantity}
-        elif best_change < -10:
-            # Sell if market is crashing
-            for stock in stocks:
+            stock_price = prices[best_stock]
+            if stock_price > 0:
+                max_affordable = konto // stock_price
+                quantity = min(max_affordable, random.randint(5, 15))
+                if quantity > 0:
+                    return {"action": "buy", "stock": best_stock, "quantity": quantity}
+
+        # Sell if market is crashing (large price drop)
+        if best_change < -10:
+            for stock in NORMAL_STOCKS:
                 owned = player.get(f"A{stock.lower()}", 0)
-                if owned > 0:
+                if owned > 2:
                     return {"action": "sell", "stock": stock, "quantity": owned // 2}
 
-        # Consider unlocking crypto if rich enough
-        if not player.get("krypto", False) and player.get("konto", 0) > CRYPTO_UNLOCK_COST * 3:
+        # Unlock crypto if very wealthy
+        if not player.get("krypto", False) and konto > CRYPTO_UNLOCK_COST * 3:
             return {"action": "unlock_crypto"}
+
+        # Fallback: buy cheapest normal stock if we have money
+        cheapest = min(NORMAL_STOCKS, key=lambda s: prices[s])
+        if konto >= prices[cheapest] * 3:
+            quantity = min(konto // prices[cheapest], random.randint(3, 10))
+            if quantity > 0:
+                return {"action": "buy", "stock": cheapest, "quantity": quantity}
 
         return {"action": "hold"}
 
@@ -107,24 +118,35 @@ class AIPlayer:
         if player.get("krypto", False):
             stocks.extend(CRYPTO_STOCKS)
 
-        # Check if any stock is very cheap (good buy opportunity)
+        konto = player.get("konto", 0)
+
+        # Buy normal stocks if price dropped significantly below starting price (100$)
         for stock in NORMAL_STOCKS:
             if prices[stock] < 50:
-                affordable = player.get("konto", 0) // prices[stock]
-                quantity = min(affordable // 4, 5)  # Small investments
+                affordable = konto // prices[stock]
+                quantity = min(affordable // 4, 5)
                 if quantity > 0:
                     return {"action": "buy", "stock": stock, "quantity": quantity}
 
-        # Sell stocks that are very high (take profits)
-        for stock in stocks:
+        # Sell normal stocks when price is very high (near overflow at 250$)
+        for stock in NORMAL_STOCKS:
             owned = player.get(f"A{stock.lower()}", 0)
             if owned > 0 and prices[stock] > 200:
                 return {"action": "sell", "stock": stock, "quantity": owned}
 
-        # Diversify - buy stocks we don't have
+        # For crypto: sell based on percentage gain from last known price
+        if player.get("krypto", False):
+            for stock in CRYPTO_STOCKS:
+                owned = player.get(f"A{stock.lower()}", 0)
+                if owned > 0:
+                    last = self.last_prices.get(stock, prices[stock])
+                    if last > 0 and prices[stock] > last * 1.3:
+                        return {"action": "sell", "stock": stock, "quantity": max(1, owned // 2)}
+
+        # Diversify normal stocks we don't own yet
         for stock in NORMAL_STOCKS:
             owned = player.get(f"A{stock.lower()}", 0)
-            if owned == 0 and player.get("konto", 0) > prices[stock] * 3:
+            if owned == 0 and konto > prices[stock] * 3:
                 return {"action": "buy", "stock": stock, "quantity": 2}
 
         return {"action": "hold"}
@@ -204,24 +226,31 @@ class AIPlayer:
 
     def apply_difficulty_modifier(self, decision):
         """Apply difficulty-based modifications to decisions."""
-        if decision["action"] == "hold":
-            return decision
-
         if self.difficulty == self.DIFFICULTY_EASY:
-            # Easy AI makes mistakes sometimes
-            if random.random() < 0.3:  # 30% chance to make wrong decision
-                if decision["action"] == "buy":
-                    decision["action"] = "sell"
-                elif decision["action"] == "sell":
-                    decision["action"] = "buy"
-            # Also trades in smaller quantities
+            # Easy: 40% chance to hold (do nothing) instead of acting
+            if decision["action"] != "hold" and random.random() < 0.4:
+                return {"action": "hold"}
+            # Easy: 25% chance to flip buy/sell (wrong decision)
+            if decision["action"] in ("buy", "sell") and random.random() < 0.25:
+                decision = dict(decision)
+                decision["action"] = "sell" if decision["action"] == "buy" else "buy"
+            # Easy: trade in smaller quantities
             if "quantity" in decision:
-                decision["quantity"] = max(1, decision["quantity"] // 2)
+                decision = dict(decision)
+                decision["quantity"] = max(1, decision["quantity"] // 3)
+
+        elif self.difficulty == self.DIFFICULTY_MEDIUM:
+            # Medium: slight random reduction in quantity
+            if "quantity" in decision and random.random() < 0.2:
+                decision = dict(decision)
+                decision["quantity"] = max(1, int(decision["quantity"] * 0.8))
 
         elif self.difficulty == self.DIFFICULTY_HARD:
-            # Hard AI trades more efficiently
+            # Hard: trades efficiently in larger quantities
             if "quantity" in decision:
-                decision["quantity"] = int(decision["quantity"] * 1.5)
+                decision = dict(decision)
+                decision["quantity"] = int(decision["quantity"] * 2.0)
+            # Hard: never misses a good opportunity (no random holds)
 
         return decision
 

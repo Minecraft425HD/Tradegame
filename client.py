@@ -95,10 +95,10 @@ def run_client(host, is_host=False, player_name=None):
 
     def send_request(action, stock=None, quantity=None, name=None, message=None):
         nonlocal player_id
-        # Allow chat and heartbeat always, other actions only when it's player's turn
-        if game_state["current_player"] != player_id and action not in ["set_name", "chat", "heartbeat"]:
+        # buy_rounds and unlock_crypto are allowed any time (shop purchases)
+        unrestricted = ["set_name", "chat", "heartbeat", "buy_rounds", "unlock_crypto"]
+        if game_state["current_player"] != player_id and action not in unrestricted:
             logging.info(f"Nicht dran! Aktueller Spieler: {game_state['current_player']}")
-            print(f"Nicht dran! Aktueller Spieler: {game_state['current_player']}")
             return False
 
         request = {"action": action}
@@ -207,14 +207,19 @@ def run_client(host, is_host=False, player_name=None):
                     show_news_screen(player_id, client)
                 elif shop_button_rect.collidepoint(event.pos):
                     show_shop_screen(player_id, client, send_request)
-                for stock, label in stock_labels.items():
-                    if label.collidepoint(event.pos):
-                        selected_stock = stock
-                if card_button_rect.collidepoint(event.pos):
-                    send_request("draw_card")
+                elif card_button_rect.collidepoint(event.pos):
+                    if game_state["current_player"] == player_id:
+                        send_request("draw_card")
+                    else:
+                        persistent_error_message = f"Warte auf {game_state['current_player']}!"
                 elif end_button_rect and end_button_rect.collidepoint(event.pos):
                     running = False
                     show_results_screen(player_id, client)
+                else:
+                    for stock, label in stock_labels.items():
+                        if label.collidepoint(event.pos):
+                            selected_stock = stock
+                            break
             elif event.type == pygame.KEYDOWN:
                 if chat_active:
                     if event.key == pygame.K_RETURN:
@@ -240,23 +245,26 @@ def run_client(host, is_host=False, player_name=None):
                         if not running:
                             break
                     elif event.key == pygame.K_RETURN and selected_stock:
-                        player = game_state["players"].get(player_id, {})
-                        if quantity > 0:
-                            cost = quantity * game_state["stocks"].get(selected_stock, 0)
-                            if player.get("konto", 0) >= cost:
-                                send_request("buy", selected_stock, quantity)
-                                quantity = 0
-                                persistent_error_message = ""
-                            else:
-                                persistent_error_message = "Nicht genügend Geld zum Kauf!"
-                        elif quantity < 0:
-                            stock_key = f"A{selected_stock.lower()}"
-                            if player.get(stock_key, 0) >= abs(quantity):
-                                send_request("sell", selected_stock, abs(quantity))
-                                quantity = 0
-                                persistent_error_message = ""
-                            else:
-                                persistent_error_message = "Nicht genügend Aktien zum Verkauf!"
+                        if game_state["current_player"] != player_id:
+                            persistent_error_message = f"Warte auf {game_state['current_player']}!"
+                        else:
+                            player = game_state["players"].get(player_id, {})
+                            if quantity > 0:
+                                cost = quantity * game_state["stocks"].get(selected_stock, 0)
+                                if player.get("konto", 0) >= cost:
+                                    send_request("buy", selected_stock, quantity)
+                                    quantity = 0
+                                    persistent_error_message = ""
+                                else:
+                                    persistent_error_message = "Nicht genügend Geld zum Kauf!"
+                            elif quantity < 0:
+                                stock_key = f"A{selected_stock.lower()}"
+                                if player.get(stock_key, 0) >= abs(quantity):
+                                    send_request("sell", selected_stock, abs(quantity))
+                                    quantity = 0
+                                    persistent_error_message = ""
+                                else:
+                                    persistent_error_message = "Nicht genügend Aktien zum Verkauf!"
 
         # Network check with throttling
         current_time = time.time()
@@ -429,6 +437,8 @@ def run_client(host, is_host=False, player_name=None):
         plus_1_rect = plus_1_button.draw()
         plus_10_rect = plus_10_button.draw()
 
+        is_my_turn = game_state["current_player"] == player_id
+
         # Card display
         if game_state["drawn_values"]:
             card_width = 300
@@ -441,14 +451,20 @@ def run_client(host, is_host=False, player_name=None):
             draw_text("Karte", small_font, colors["BLACK"], x_margin + (card_width // 2) - 30, y_margin + 10)
             for i, (stock, value) in enumerate(game_state["drawn_values"].items()):
                 draw_text(f"{stock}: {value}", small_font, colors["BLACK"], x_margin + 20, y_margin + 40 + i * 30)
-            card_button = Button("Karte ziehen", x_margin + (card_width // 2) - 100, y_margin + card_height + 20, colors["BLUE"])
+            card_color = colors["BLUE"] if is_my_turn else colors["GRAY"]
+            card_button = Button("Karte ziehen", x_margin + (card_width // 2) - 100, y_margin + card_height + 20, card_color)
         else:
-            card_button = Button("Karte ziehen", screen.get_width() // 2 - 100, screen.get_height() // 2 + 50, colors["BLUE"])
+            card_color = colors["BLUE"] if is_my_turn else colors["GRAY"]
+            card_button = Button("Karte ziehen", screen.get_width() // 2 - 100, screen.get_height() // 2 + 50, card_color)
             if current_round >= max_rounds:
                 draw_text("Sie befinden sich in der letzten Runde. Gehen Sie in den Shop, um weitere Runden zu kaufen", font, colors["RED"], screen.get_width() // 2 - 300, screen.get_height() // 2 - 80)
 
+        if not is_my_turn:
+            draw_text(f"KI ({game_state['current_player']}) ist am Zug ...", font, colors["RED"],
+                      screen.get_width() // 2 - 120, screen.get_height() // 2 - 20)
+
         # Pulse animation for active player
-        if game_state["current_player"] == player_id and not game_state["drawn_values"]:
+        if is_my_turn and not game_state["drawn_values"]:
             pulse_size += pulse_direction * PULSE_SPEED
             if pulse_size >= MAX_PULSE_SIZE or pulse_size <= 0:
                 pulse_direction *= -1

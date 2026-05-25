@@ -16,6 +16,24 @@ from network import broadcast_game_state, receive_full_message
 # AI players registry (player_id -> ai_instance)
 ai_players = {}
 
+
+def stop_server():
+    """Stoppt den Server und räumt den Zustand auf."""
+    global server_running, ai_players
+    server_running = False
+    ai_players = {}
+    logging.info("Server wird gestoppt")
+
+
+def reset_server_state():
+    """Setzt den Server-Zustand für ein neues Spiel zurück."""
+    global ai_players
+    ai_players = {}
+    with lock:
+        clients.clear()
+        client_heartbeats.clear()
+    logging.info("Server-Zustand zurückgesetzt")
+
 # Input validation functions
 def sanitize_string(text, max_length=100):
     """Sanitizes input string to prevent injection attacks."""
@@ -92,6 +110,7 @@ def process_ai_turn():
             # AI passes - draw card and end turn
             draw_card_multiplayer(current)
             advance_to_next_player(current)
+            threading.Thread(target=broadcast_game_state, daemon=True).start()
             return True
 
         action = decision.get("action")
@@ -374,19 +393,17 @@ def handle_client(conn, addr):
                                     else:
                                         logging.warning(f"Ungültige Verkaufsanfrage von {player_id}: stock={stock}, qty={quantity}")
 
-                            # Handle buy_rounds
+                            # Handle buy_rounds (allowed any time, not restricted to current turn)
                             elif action == "buy_rounds":
-                                if game_state["current_player"] == player_id:
-                                    buy_rounds_multiplayer(player_id)
-                                    increment_state_version()
-                                    threading.Thread(target=broadcast_game_state, daemon=True).start()
+                                buy_rounds_multiplayer(player_id)
+                                increment_state_version()
+                                threading.Thread(target=broadcast_game_state, daemon=True).start()
 
-                            # Handle unlock_crypto
+                            # Handle unlock_crypto (allowed any time, not restricted to current turn)
                             elif action == "unlock_crypto":
-                                if game_state["current_player"] == player_id:
-                                    unlock_crypto_multiplayer(player_id)
-                                    increment_state_version()
-                                    threading.Thread(target=broadcast_game_state, daemon=True).start()
+                                unlock_crypto_multiplayer(player_id)
+                                increment_state_version()
+                                threading.Thread(target=broadcast_game_state, daemon=True).start()
 
                     except json.JSONDecodeError as e:
                         logging.error(f"Ungültige JSON von {player_id}: {e} (Daten: {data[:100]}...)")
