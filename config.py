@@ -184,3 +184,26 @@ def increment_state_version():
     """Erhöht die State-Version nach jeder Änderung."""
     with lock:
         game_state["state_version"] = game_state.get("state_version", 0) + 1
+
+def reset_game_state():
+    """Setzt den Spielzustand vollständig zurück für ein neues Spiel."""
+    with lock:
+        game_state["players"] = {}
+        game_state["drawn_values"] = {}
+        game_state["stocks"] = {
+            "Beyer": INITIAL_STOCK_PRICE,
+            "BMW": INITIAL_STOCK_PRICE,
+            "BP": INITIAL_STOCK_PRICE,
+            "Commerzbank": INITIAL_STOCK_PRICE,
+            "Bitcoin": INITIAL_BITCOIN_PRICE,
+            "Ethereum": INITIAL_ETHEREUM_PRICE,
+            "Litecoin": INITIAL_LITECOIN_PRICE,
+            "Dogecoin": INITIAL_DOGECOIN_PRICE
+        }
+        game_state["round"] = 0
+        game_state["max_rounds"] = MAX_GLOBAL_ROUNDS
+        game_state["current_player"] = None
+        game_state["start_time"] = None
+        game_state["last_event_text"] = ""
+        game_state["chat_history"] = []
+        game_state["state_version"] = 0

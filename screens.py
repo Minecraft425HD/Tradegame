@@ -4,10 +4,10 @@ import time
 import socket
 import threading
 import json
-from config import colors, game_state, logging, server_running, lock, initial_variables, increment_state_version
+from config import colors, game_state, logging, server_running, lock, initial_variables, increment_state_version, reset_game_state
 from pygame_setup import clock, screen, fullscreen, native_width, native_height, background_image
 from ui import draw_text, Button, draw_input_box
-from server import start_server, register_ai_player, ai_players
+from server import start_server, register_ai_player, ai_players, stop_server, reset_server_state
 from client import run_client
 from network import receive_full_message
 from game_logic import get_news_text
@@ -410,40 +410,34 @@ def start_singleplayer_game(difficulty, mode):
     """Start a singleplayer game against AI."""
     global server_running
 
-    print(f"[DEBUG] Starting singleplayer: {difficulty}, {mode}")
+    # Stop any running server and reset all state for fresh game
+    stop_server()
+    pygame.time.wait(200)
+    reset_game_state()
+    reset_server_state()
 
     # Set game mode
     game_mode_manager.set_mode(mode)
 
     # Create AI player
-    print("[DEBUG] Creating AI player...")
     ai_player = ai_manager.create_ai("KI_Gegner", difficulty)
-    print(f"[DEBUG] AI player created")
 
-    # Start local server
     try:
         # Start server in background
-        print("[DEBUG] Starting server thread...")
         server_thread = threading.Thread(target=start_server, daemon=True)
         server_thread.start()
 
         # Wait for server to be ready
-        print("[DEBUG] Waiting 1 second for server...")
         pygame.time.wait(1000)
         server_running = True
-        print("[DEBUG] Server should be ready")
 
         # Register AI player with the server
-        print("[DEBUG] Registering AI player...")
         register_ai_player("KI_Gegner", ai_player)
 
-        # Add AI player to game_state
-        print("[DEBUG] Adding AI to game_state...")
-        print(f"[DEBUG] initial_variables: {initial_variables}")
-
-        # Create AI data outside lock to minimize lock time
+        # Build AI player data from initial_variables or safe defaults
+        from constants import INITIAL_ROUNDS
         ai_data = dict(initial_variables) if initial_variables else {
-            "konto": 10000,
+            "konto": 1000000,
             "Abeyer": 0,
             "Abmw": 0,
             "Abp": 0,
@@ -453,9 +447,9 @@ def start_singleplayer_game(difficulty, mode):
             "Alitecoin": 0,
             "Adogecoin": 0,
             "game_round": 0,
-            "max_rounds": 10
+            "max_rounds": INITIAL_ROUNDS,
+            "buy_rounds": 1000,
         }
-        print("[DEBUG] ai_data base created")
         ai_data["krypto"] = False
         ai_data["lost"] = False
         ai_data["game_over"] = False
@@ -467,38 +461,26 @@ def start_singleplayer_game(difficulty, mode):
         ai_data["bytes_received"] = 0
         ai_data["running"] = True
         ai_data["is_ai"] = True
-        print("[DEBUG] ai_data configured, acquiring lock...")
 
         with lock:
-            print("[DEBUG] Lock acquired!")
             game_state["players"]["KI_Gegner"] = ai_data
-            print("[DEBUG] AI added to players")
             if game_state["start_time"] is None:
                 game_state["start_time"] = time.time()
-            # Manually increment - don't call increment_state_version() as it also uses lock (deadlock!)
-            game_state["state_version"] = game_state.get("state_version", 0) + 1
-            print("[DEBUG] State version incremented")
+            increment_state_version()
 
-        print("[DEBUG] Lock released, starting client...")
-        logging.info(f"Singleplayer started: {difficulty} difficulty, {mode} mode")
+        logging.info(f"Singleplayer gestartet: Schwierigkeit={difficulty}, Modus={mode}")
 
-        # Start client for human player
+        # Connect human player
         result = run_client("127.0.0.1", is_host=True, player_name="Spieler")
-        print(f"[DEBUG] Client returned: {result}")
 
-        # Return to main menu after game ends
         if result is False:
-            print("[DEBUG] Client connection FAILED")
-            logging.warning("Client connection failed, returning to main menu")
+            logging.warning("Client-Verbindung fehlgeschlagen")
 
     except Exception as e:
-        print(f"[DEBUG] EXCEPTION: {e}")
-        logging.error(f"Failed to start singleplayer: {e}")
+        logging.error(f"Fehler beim Starten des Singleplayer-Spiels: {e}")
         import traceback
         traceback.print_exc()
 
-    # Always return to main menu after singleplayer
-    print("[DEBUG] Returning to main menu...")
     show_main_menu()
 
 
@@ -729,23 +711,50 @@ def show_news_screen(player_id, client):
 
 def show_shop_screen(player_id, client, send_request):
     shop_running = True
-    player = game_state["players"].get(player_id, {})
+    shop_message = ""
     while shop_running:
+        # Refresh player data every frame so prices update after purchase
+        player = game_state["players"].get(player_id, {})
+
         screen.fill(colors["WHITE"])
         draw_text("Shop", pygame.font.Font(None, 48), colors["BLACK"], screen.get_width() // 2 - 50, 40)
+
         back_button = Button("Zurück", 50, 50, colors["BLUE"])
         back_button_rect = back_button.draw()
+
         font = pygame.font.Font(None, 36)
-        text_surface = font.render(f"Kaufe 10 Runden ({player.get('buy_rounds', 0)}$)", True, colors["WHITE"])
+
+        rounds_cost = player.get("buy_rounds", 1000)
+        can_afford_rounds = player.get("konto", 0) >= rounds_cost
+        rounds_color = colors["GREEN"] if can_afford_rounds else colors["GRAY"]
+        text_surface = font.render(f"10 Runden kaufen ({rounds_cost}$)", True, colors["WHITE"])
         text_width = text_surface.get_width() + 20
         buy_rounds_button_rect = pygame.Rect(screen.get_width() // 2 - text_width // 2, 200, text_width, 50)
-        pygame.draw.rect(screen, colors["GREEN"], buy_rounds_button_rect, border_radius=15)
+        pygame.draw.rect(screen, rounds_color, buy_rounds_button_rect, border_radius=15)
         screen.blit(text_surface, text_surface.get_rect(center=buy_rounds_button_rect.center))
-        text_surface = font.render("Krypto Markt Freischalten (10000$)", True, colors["WHITE"])
+
+        crypto_unlocked = player.get("krypto", False)
+        crypto_cost = 10000
+        can_afford_crypto = player.get("konto", 0) >= crypto_cost and not crypto_unlocked
+        if crypto_unlocked:
+            crypto_label = "Krypto Markt: Bereits freigeschaltet"
+            crypto_color = colors["GRAY"]
+        else:
+            crypto_label = f"Krypto Markt freischalten ({crypto_cost}$)"
+            crypto_color = colors["GREEN"] if can_afford_crypto else colors["GRAY"]
+        text_surface = font.render(crypto_label, True, colors["WHITE"])
         text_width = text_surface.get_width() + 20
         buy_crypto_button_rect = pygame.Rect(screen.get_width() // 2 - text_width // 2, 300, text_width, 50)
-        pygame.draw.rect(screen, colors["GREEN"] if not player.get("krypto", False) else colors["GRAY"], buy_crypto_button_rect, border_radius=15)
+        pygame.draw.rect(screen, crypto_color, buy_crypto_button_rect, border_radius=15)
         screen.blit(text_surface, text_surface.get_rect(center=buy_crypto_button_rect.center))
+
+        draw_text(f"Kontostand: {player.get('konto', 0):,}$", pygame.font.Font(None, 28),
+                  colors["BLACK"], screen.get_width() // 2 - 120, 380)
+
+        if shop_message:
+            draw_text(shop_message, pygame.font.Font(None, 28), colors["RED"],
+                      screen.get_width() // 2 - 180, 430)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game_state["players"][player_id]["running"] = False
@@ -756,9 +765,17 @@ def show_shop_screen(player_id, client, send_request):
                 if back_button_rect.collidepoint(event.pos):
                     shop_running = False
                 elif buy_rounds_button_rect.collidepoint(event.pos):
-                    send_request("buy_rounds")
-                elif buy_crypto_button_rect.collidepoint(event.pos) and not player.get("krypto", False):
-                    send_request("unlock_crypto")
+                    if can_afford_rounds:
+                        send_request("buy_rounds")
+                        shop_message = "10 Runden gekauft!"
+                    else:
+                        shop_message = "Nicht genug Geld!"
+                elif buy_crypto_button_rect.collidepoint(event.pos) and not crypto_unlocked:
+                    if can_afford_crypto:
+                        send_request("unlock_crypto")
+                        shop_message = "Krypto-Markt freigeschaltet!"
+                    else:
+                        shop_message = "Nicht genug Geld (benötigt 10.000$)!"
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     shop_running = False
