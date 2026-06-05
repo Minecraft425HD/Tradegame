@@ -674,40 +674,6 @@ def show_main_settings_screen():
         pygame.display.flip()
         clock.tick(60)
 
-def show_news_screen(player_id, client):
-    news_running = True
-    while news_running:
-        screen.fill(colors["GRAY"])
-        draw_text("Zeitungsseite", pygame.font.Font(None, 48), colors["BLACK"], screen.get_width() // 2 - 110, 40)
-        back_button = Button("Zurück", 50, 50, colors["BLUE"])
-        back_button_rect = back_button.draw()
-        y_offset = 140
-        if game_state["last_event_text"]:
-            draw_text(game_state["last_event_text"], pygame.font.Font(None, 24), colors["BLACK"], 100, y_offset)
-            y_offset += 40
-       
-        for stock, value in game_state["drawn_values"].items():
-            if value and value != "0":
-                operator, val = value.split()
-                val = int(val)
-                change = val if operator == "+" else -val
-                news_text = get_news_text(stock, change)
-                draw_text(f"{news_text}", pygame.font.Font(None, 24), colors["BLACK"], 100, y_offset)
-                y_offset += 40
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                game_state["players"][player_id]["running"] = False
-                client.close()
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if back_button_rect.collidepoint(event.pos):
-                    news_running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    news_running = False
-        pygame.display.flip()
-        clock.tick(60)
 
 def show_shop_screen(player_id, client, send_request):
     shop_running = True

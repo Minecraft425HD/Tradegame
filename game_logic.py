@@ -22,7 +22,7 @@ def runde_auf_zehner(num):
         return int(num + (10 - remainder))
 
 def get_news_text(stock, change):
-    """Gets the news text for a stock change."""
+    """Gets a random news headline for a stock change."""
     if not news_data or stock not in news_data:
         if change > 0:
             return f"{stock} Aktie steigt um {change} Punkte!"
@@ -30,10 +30,11 @@ def get_news_text(stock, change):
             return f"{stock} Aktie fällt um {abs(change)} Punkte!"
 
     try:
-        if change > 0:
-            return news_data[stock]["positive"].format(change=change)
-        else:
-            return news_data[stock]["negative"].format(change=abs(change))
+        key = "positive" if change > 0 else "negative"
+        template = news_data[stock][key]
+        if isinstance(template, list):
+            template = random.choice(template)
+        return template.format(change=abs(change))
     except (KeyError, ValueError) as e:
         logging.error(f"Fehler beim Generieren von News-Text: {e}")
         return f"{stock}: {'+' if change > 0 else ''}{change}"
